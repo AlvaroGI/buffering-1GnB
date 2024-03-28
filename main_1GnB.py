@@ -88,10 +88,10 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, 
 	- burn:		(float) Burn the first percentage of samples.
 
 	Returns:
-	- cons_fid_avg:		(float) Average fidelity upon consumption.
-	- cons_fid_stderr:		(float) Standard error on the average fidelity.
-	- availability_avg:		(float) Ratio of accepted consumption requests.
-	- availability_stderr:	(float) Standard error on the availability.
+	- Fcons_avg:		(float) Average fidelity upon consumption.
+	- Fcons_stderr:		(float) Standard error on the average fidelity.
+	- A_avg:		(float) Ratio of accepted consumption requests.
+	- A_stderr:	(float) Standard error on the availability.
 	- buffered_fidelity:	(list of floats) Element i is the fidelity of the buffered
 												link at the beginning of time slot i.
 	- cons_requests:	(list of bools) Element i is True if there was a consumption
@@ -170,68 +170,17 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, 
 				purif_events += [t]
 
 	# Average consumed fidelity
-	cons_fid_avg = np.mean(cons_fidelities)
-	cons_fid_std = np.std(cons_fidelities)/len(cons_fidelities)
+	Fcons_avg = np.mean(cons_fidelities)
+	Fcons_stderr = np.std(cons_fidelities)/np.sqrt(len(cons_fidelities))
 
 	# Availability 
 	# 	(standard error for a Bernoulli process: https://en.wikipedia.org/wiki/
 	# 	Binomial_proportion_confidence_interval#Standard_error_of_a_proportion_estimation_when_using_weighted_data)
-	availability_avg = cons_events/sum(cons_requests)
-	availability_stderr = np.sqrt(availability_avg*(1-availability_avg)/sum(cons_requests))
+	A_avg = cons_events/sum(cons_requests)
+	A_stderr = np.sqrt(A_avg*(1-A_avg)/sum(cons_requests))
 
-	return cons_fid_avg, cons_fid_std, availability_avg, availability_stderr, buffered_fidelity, cons_requests, purif_events
+	return Fcons_avg, Fcons_stderr, A_avg, A_stderr, buffered_fidelity, cons_requests, purif_events
 
-
-
-# def multiple_runs_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, Gamma, p_cons, t_end, N_samples, randomseed):
-
-# 	#------------------------------------------------------
-# 	# Check valid parameter values
-# 	#------------------------------------------------------
-# 	assert p_gen>=0 and p_gen<=1
-# 	assert q_purif>=0 and q_purif<=1
-# 	assert p_cons>=0 and p_cons<=1
-
-# 	if pur_after_swap:
-# 		raise ValueError('pur_after_swap not implemented')
-	
-# 	#------------------------------------------------------
-# 	# Initialize variables
-# 	#------------------------------------------------------
-# 	np.random.seed(randomseed)
-# 	random.seed(randomseed)
-
-# 	# Performance metrics
-# 	availability_avg = [None for i in range(t_end+1)]
-# 	availability_stderr = [None for i in range(t_end+1)]
-# 	consumed_fidelity_avg = [None for i in range(t_end+1)]
-# 	consumed_fidelity_stderr = [None for i in range(t_end+1)]
-# 	rejections_avg = [None for i in range(t_end+1)]
-# 	rejections_stderr = [None for i in range(t_end+1)]
-
-# 	# Logs for 10 runs
-# 	buffered_fidelities = []
-# 	cons_requests_list = []
-# 	purif_events_list = []
-
-# 	#------------------------------------------------------
-# 	# Initialize variables
-# 	#------------------------------------------------------
-
-# 	for sample in range(N_samples):
-# 		buffered_fidelity, consumption_requests, purif_events = single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol,
-# 																	pur_after_swap, Gamma, p_cons, t_end, randomseed=None)
-# 		if sample < 10:
-# 			buffered_fidelities += [buffered_fidelity]
-# 			cons_requests_list += [consumption_requests]
-# 			purif_events_list += [purif_events]
-
-
-
-# 	return availability_avg, availability_stderr,
-# 		consumed_fidelity_avg, consumed_fidelity_stderr,
-# 		rejections_avg, rejections_stderr,
-# 		subset_single_runs
 
 
 #------------------------------------------------------------------------------------------
@@ -239,12 +188,13 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, 
 #------------------------------------- PLOTS ----------------------------------------------
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
-def plot_run_1GnB(buffered_fidelity, cons_requests, purif_events, n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, Gamma, p_cons, t_end, randomseed=None):
+def plot_run_1GnB(Fcons_avg, buffered_fidelity, cons_requests, purif_events, n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, Gamma, p_cons, t_end, randomseed=None):
 	"""
 	Plot the fidelity of the buffered memory in the 1GnB entanglement buffer over time,
 	for multiple realizations of the process.
 
 	Parameters:
+	- Fcons_avg:		(float) Average fidelity upon consumption.
 	- buffered_fidelity:	(list of floats) Element i is the fidelity of the buffered
 												link at the beginning of time slot i.
 	- cons_requests:	(list of bools) Element i is True if there was a consumption
@@ -280,6 +230,9 @@ def plot_run_1GnB(buffered_fidelity, cons_requests, purif_events, n, p_gen, rho_
 	# Plot evolution of fidelity
 	plt.scatter(range(t_end+1), buffered_fidelity)
 	plt.plot(range(t_end+1), buffered_fidelity, color='tab:blue', marker='o', zorder=0)
+
+	# Plot average
+	plt.plot([0,t_end+1], [Fcons_avg, Fcons_avg], '--k')
 
 	# Highlight consumption events
 	cons_events = []
