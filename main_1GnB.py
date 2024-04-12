@@ -21,13 +21,12 @@ from tqdm.notebook import tqdm as tqdmn
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
 
-def policy_DEJMPS(F, rho_new, num_new_links):
+def policy_DEJMPS(rho_new, num_new_links):
 	'''Purification policy:
 		2-to-1: DEJMPS purification protocol.
 		x-to-1: uses one new link for DEJMPS and discards the rest.
 
 	Parameters:
-	- F:		(int) Fidelity of the buffered state (Werner).
 	- rho_new:	(np.array) Density matrix of newly generated entangled links,
 							written in the Bell-state basis: 00+11, 00-11, 01+10, 01-10.
 							The fidelity is the first entry of the matrix.
@@ -40,11 +39,11 @@ def policy_DEJMPS(F, rho_new, num_new_links):
 
 	assert num_new_links >= 1
 
-	## Werner state in memory ##
-	A_werner = F
-	B_werner = (1-F)/3
-	C_werner = (1-F)/3
-	D_werner = (1-F)/3
+	# ## Werner state in memory ##
+	# A_werner = F
+	# B_werner = (1-F)/3
+	# C_werner = (1-F)/3
+	# D_werner = (1-F)/3
 
 	## Diagonal elements of the newly generated state (in Bell-state basis) ##
 	A = rho_new[0][0]
@@ -70,8 +69,7 @@ def policy_DEJMPS(F, rho_new, num_new_links):
 #------------------------------------------------------------------------------------------
 
 def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons, t_end, randomseed, burn=None):
-	"""
-	Simulates the 1GnB entanglement buffer.
+	'''Simulates the 1GnB entanglement buffer.
 	Runs a single realization of the process.
 
 	Parameters:
@@ -107,8 +105,7 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Ga
 											request at the beginning of time slot i.
 											In that case, the consumed fidelity is
 											buffered_fidelity_trace[i].
-	- purif_events:		(list of ints) Time slots in which purification was attempted.
-	"""
+	- purif_events:		(list of ints) Time slots in which purification was attempted.'''
 
 	#------------------------------------------------------
 	# Check valid parameter values
@@ -169,7 +166,7 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Ga
 
 			# Purify
 			if np.random.rand() < q_purif:
-				a_l,b_l,c_l,d_l = purif_policy(F,rho_new,num_new_links)
+				a_l,b_l,c_l,d_l = purif_policy(rho_new,num_new_links)
 				p_purif_succ = c_l*(F-1/4) + d_l
 				F_out = ( (a_l*(F-1/4)+b_l) / p_purif_succ ) + 1/4
 				if np.random.rand() < p_purif_succ:
@@ -192,7 +189,41 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Ga
 
 	return Fcons_avg, Fcons_stderr, A_avg, A_stderr, buffered_fidelity_trace, cons_requests_trace, purif_events
 
+#------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------
+#------------------------------------- ANALYTICS ------------------------------------------
+#------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------
 
+def availability(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons):
+	'''Computes the availability using our analytical solution.
+
+	Parameters:
+	- n:		(int) Number of bad memories.
+	- p_gen:	(float) Probability of successful entanglement generation
+						in each bad memory at each time slot.
+	- rho_new:	(np.array) Density matrix of newly generated entangled links,
+							written in the Bell-state basis: 00+11, 00-11, 01+10, 01-10.
+							The fidelity is the first entry of the matrix.
+	- q_purif:	(float) Probability of purifying the link in memory when
+						new links are generated.
+	- purif_policy:	(function) Returns the purification coefficients a_l, b_l, c_l, d_l:
+								Prob of success = c_l*(F-1/4) + d_l
+								Shifted output fidelity = (a_l*(F-1/4)+b_l)/(Prob of success).
+								Inputs: fidelity F of the buffered link, rho_new,
+								and number of new links l.
+	- pur_after_swap:	(bool) If True, purification can be immediately performed
+								after swapping a new link from a B memory to G.
+								Otherwise, the other new links are discarded.
+	- Gamma:	(float) Decoherence rate in number of time slots.
+	- p_cons:	(float) Probability of consumption request at each time slot.
+
+	Returns:
+	- A:	(float) Availability (ratio of accepted consumption requests).'''
+
+
+	## Compute purification constants ##
+	purif_constants = [policy_DEJMPS(F, rho_new, l) for l in range(1,n+1)]
 
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
@@ -279,6 +310,31 @@ def plot_run_1GnB(Fcons_avg, buffered_fidelity_trace, cons_requests_trace, purif
 
 	# Legend
 	plt.legend()
+
+
+
+
+
+
+#------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------
+#------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
