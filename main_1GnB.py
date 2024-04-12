@@ -17,14 +17,14 @@ from tqdm.notebook import tqdm as tqdmn
 
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
-#------------------------------- PURIFICATION PROTOCOLS -----------------------------------
+#-------------------------------- PURIFICATION POLICIES -----------------------------------
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
 
-def DEJMPS(F, rho_new, num_new_links):
-	"""
-	DEJMPS 2-to-1 purification protocol.
-	For any num_new_links, uses one new link for DEJMPS and discards the rest.
+def policy_DEJMPS(F, rho_new, num_new_links):
+	'''Purification policy:
+		2-to-1: DEJMPS purification protocol.
+		x-to-1: uses one new link for DEJMPS and discards the rest.
 
 	Parameters:
 	- F:		(int) Fidelity of the buffered state (Werner).
@@ -36,24 +36,32 @@ def DEJMPS(F, rho_new, num_new_links):
 
 	Returns:
 	- p_purif_succ:	(float) Probability of success.
-	- F_out:	(float) Output fidelity.
-	"""
+	- F_out:	(float) Output fidelity.'''
+
 	assert num_new_links >= 1
 
+	## Werner state in memory ##
 	A_werner = F
 	B_werner = (1-F)/3
 	C_werner = (1-F)/3
 	D_werner = (1-F)/3
 
+	## Diagonal elements of the newly generated state (in Bell-state basis) ##
 	A = rho_new[0][0]
 	B = rho_new[3][3]
 	C = rho_new[2][2]
 	D = rho_new[1][1]
 
-	p_purif_succ = (A+B)*(A_werner+B_werner) + (C+D)*(C_werner+D_werner)
-	F_out = (A*A_werner + B*B_werner) / p_purif_succ
+	#p_purif_succ = (A+B)*(A_werner+B_werner) + (C+D)*(C_werner+D_werner)
+	#F_out = (A*A_werner + B*B_werner) / p_purif_succ
 
-	return p_purif_succ, F_out
+	## Purification coefficients ##
+	c1 = (2/3) * (A+B-C-D) # Prob of success = c1*(F-1/4) + d1
+	d1 = (1/2) * (A+B+C+D)
+	a1 = (1/3) * (A-3*B+2*C+2*D) # Shifted output fidelity = (a1*(F-1/4) + b1) / (Prob of success)
+	b1 = (1/4) * (2*A-B-2*C-2*D)
+
+	return a1,b1,c1,d1
 
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
@@ -61,7 +69,7 @@ def DEJMPS(F, rho_new, num_new_links):
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
 
-def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, Gamma, p_cons, t_end, randomseed, burn=None):
+def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons, t_end, randomseed, burn=None):
 	"""
 	Simulates the 1GnB entanglement buffer.
 	Runs a single realization of the process.
@@ -75,10 +83,11 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, 
 							The fidelity is the first entry of the matrix.
 	- q_purif:	(float) Probability of purifying the link in memory when
 						new links are generated.
-	- purif_protocol:	(function) Returns the probability of success and the
-									output fidelity of the purification protocol,
-									for a given fidelity F of the buffered link,
-									rho_new, and number of new links l.
+	- purif_policy:	(function) Returns the purification coefficients a_l, b_l, c_l, d_l:
+								Prob of success = c_l*(F-1/4) + d_l
+								Shifted output fidelity = (a_l*(F-1/4)+b_l)/(Prob of success).
+								Inputs: fidelity F of the buffered link, rho_new,
+								and number of new links l.
 	- pur_after_swap:	(bool) If True, purification can be immediately performed
 								after swapping a new link from a B memory to G.
 								Otherwise, the other new links are discarded.
@@ -91,13 +100,13 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, 
 	- Fcons_avg:		(float) Average fidelity upon consumption.
 	- Fcons_stderr:		(float) Standard error on the average fidelity.
 	- A_avg:		(float) Ratio of accepted consumption requests.
-	- A_stderr:	(float) Standard error on the availability.
-	- buffered_fidelity:	(list of floats) Element i is the fidelity of the buffered
-												link at the beginning of time slot i.
-	- cons_requests:	(list of bools) Element i is True if there was a consumption
+	- A_stderr:		(float) Standard error on the availability.
+	- buffered_fidelity_trace:	(list of floats) Element i is the fidelity of the buffered
+													link at the beginning of time slot i.
+	- cons_requests_trace:	(list of bools) Element i is True if there was a consumption
 											request at the beginning of time slot i.
 											In that case, the consumed fidelity is
-											buffered_fidelity[i].
+											buffered_fidelity_trace[i].
 	- purif_events:		(list of ints) Time slots in which purification was attempted.
 	"""
 
@@ -124,8 +133,8 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, 
 	F = None
 
 	# Logs
-	buffered_fidelity = [None for i in range(t_end+1)]
-	cons_requests = (np.random.rand(t_end+1) < p_cons)
+	buffered_fidelity_trace = [None for i in range(t_end+1)]
+	cons_requests_trace = (np.random.rand(t_end+1) < p_cons)
 	purif_events = []
 	cons_fidelities = []
 	cons_events = 0
@@ -134,14 +143,14 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, 
 	# Run process
 	#------------------------------------------------------
 	for t in range(t_end+1):
-		buffered_fidelity[t] = F
+		buffered_fidelity_trace[t] = F
 
 		# Decohere
 		if F is not None:
 			F = 0.25 + (F-0.25)*np.exp(-Gamma)
 
 		# Consume and go to next time slot
-		if cons_requests[t] and F is not None:
+		if cons_requests_trace[t] and F is not None:
 			cons_fidelities += [F]
 			cons_events += 1
 			F = None
@@ -160,7 +169,9 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, 
 
 			# Purify
 			if np.random.rand() < q_purif:
-				p_purif_succ, F_out = purif_protocol(F,rho_new,num_new_links)
+				a_l,b_l,c_l,d_l = purif_policy(F,rho_new,num_new_links)
+				p_purif_succ = c_l*(F-1/4) + d_l
+				F_out = ( (a_l*(F-1/4)+b_l) / p_purif_succ ) + 1/4
 				if np.random.rand() < p_purif_succ:
 					# Success
 					F = F_out
@@ -176,10 +187,10 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, 
 	# Availability 
 	# 	(standard error for a Bernoulli process: https://en.wikipedia.org/wiki/
 	# 	Binomial_proportion_confidence_interval#Standard_error_of_a_proportion_estimation_when_using_weighted_data)
-	A_avg = cons_events/sum(cons_requests)
-	A_stderr = np.sqrt(A_avg*(1-A_avg)/sum(cons_requests))
+	A_avg = cons_events/sum(cons_requests_trace)
+	A_stderr = np.sqrt(A_avg*(1-A_avg)/sum(cons_requests_trace))
 
-	return Fcons_avg, Fcons_stderr, A_avg, A_stderr, buffered_fidelity, cons_requests, purif_events
+	return Fcons_avg, Fcons_stderr, A_avg, A_stderr, buffered_fidelity_trace, cons_requests_trace, purif_events
 
 
 
@@ -188,19 +199,19 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, 
 #------------------------------------- PLOTS ----------------------------------------------
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
-def plot_run_1GnB(Fcons_avg, buffered_fidelity, cons_requests, purif_events, n, p_gen, rho_new, q_purif, purif_protocol, pur_after_swap, Gamma, p_cons, t_end, randomseed=None):
+def plot_run_1GnB(Fcons_avg, buffered_fidelity_trace, cons_requests_trace, purif_events, n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons, t_end, randomseed=None):
 	"""
 	Plot the fidelity of the buffered memory in the 1GnB entanglement buffer over time,
 	for multiple realizations of the process.
 
 	Parameters:
 	- Fcons_avg:		(float) Average fidelity upon consumption.
-	- buffered_fidelity:	(list of floats) Element i is the fidelity of the buffered
+	- buffered_fidelity_trace:	(list of floats) Element i is the fidelity of the buffered
 												link at the beginning of time slot i.
-	- cons_requests:	(list of bools) Element i is True if there was a consumption
+	- cons_requests_trace:	(list of bools) Element i is True if there was a consumption
 											request at the beginning of time slot i.
 											In that case, the consumed fidelity is
-											buffered_fidelity[i].
+											buffered_fidelity_trace[i].
 	- purif_events:		(list of ints) Time slots in which purification was attempted.
 	- n:		(int) Number of bad memories.
 	- p_gen:	(float) Probability of successful entanglement generation
@@ -210,10 +221,11 @@ def plot_run_1GnB(Fcons_avg, buffered_fidelity, cons_requests, purif_events, n, 
 							The fidelity is the first entry of the matrix.
 	- q_purif:	(float) Probability of purifying the link in memory when
 						new links are generated.
-	- purif_protocol:	(function) Returns the probability of success and the
-									output fidelity of the purification protocol,
-									for a given fidelity F of the buffered link,
-									rho_new, and number of new links l.
+	- purif_policy:	(function) Returns the purification coefficients a_l, b_l, c_l, d_l:
+								Prob of success = c_l*(F-1/4) + d_l
+								Shifted output fidelity = (a_l*(F-1/4)+b_l)/(Prob of success).
+								Inputs: fidelity F of the buffered link, rho_new,
+								and number of new links l.
 	- pur_after_swap:	(bool) If True, purification can be immediately performed
 								after swapping a new link from a B memory to G.
 								Otherwise, the other new links are discarded.
@@ -228,8 +240,8 @@ def plot_run_1GnB(Fcons_avg, buffered_fidelity, cons_requests, purif_events, n, 
 	fig, ax = plt.subplots()
 	
 	# Plot evolution of fidelity
-	plt.scatter(range(t_end+1), buffered_fidelity)
-	plt.plot(range(t_end+1), buffered_fidelity, color='tab:blue', marker='o', zorder=0)
+	plt.scatter(range(t_end+1), buffered_fidelity_trace)
+	plt.plot(range(t_end+1), buffered_fidelity_trace, color='tab:blue', marker='o', zorder=0)
 
 	# Plot average
 	plt.plot([0,t_end+1], [Fcons_avg, Fcons_avg], '--k')
@@ -237,15 +249,15 @@ def plot_run_1GnB(Fcons_avg, buffered_fidelity, cons_requests, purif_events, n, 
 	# Highlight consumption events
 	cons_events = []
 	F_cons_events = []
-	for t, consumption in enumerate(cons_requests):
+	for t, consumption in enumerate(cons_requests_trace):
 		if consumption:
 			cons_events += [t]
-			F_cons_events += [buffered_fidelity[t]]
+			F_cons_events += [buffered_fidelity_trace[t]]
 	plt.scatter(cons_events, F_cons_events, color='k', marker='x', zorder=1, label='Consumption events')
 	
 	# Highlight purification events
 	purif_events = purif_events
-	plt.scatter(purif_events, [buffered_fidelity[t] for t in purif_events],
+	plt.scatter(purif_events, [buffered_fidelity_trace[t] for t in purif_events],
 				color='tab:orange', marker='^', zorder=1, label='Purification events')
 		
 
