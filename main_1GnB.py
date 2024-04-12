@@ -62,6 +62,32 @@ def policy_DEJMPS(rho_new, num_new_links):
 
 	return a1,b1,c1,d1
 
+def policy_identity(rho_new, num_new_links):
+	'''Purification policy:
+		x-to-1: discards new links, keeps the one in memory.
+
+	Parameters:
+	- rho_new:	(np.array) Density matrix of newly generated entangled links,
+							written in the Bell-state basis: 00+11, 00-11, 01+10, 01-10.
+							The fidelity is the first entry of the matrix.
+	- num_new_links:	(int) Number of newly generated links. The protocol performs
+								(num_new_links)-to-1 purification.
+
+	Returns:'''
+
+	assert num_new_links >= 1
+
+	#p_purif_succ = (A+B)*(A_werner+B_werner) + (C+D)*(C_werner+D_werner)
+	#F_out = (A*A_werner + B*B_werner) / p_purif_succ
+
+	## Purification coefficients ##
+	c_l = 0 # Prob of success = c1*(F-1/4) + d1
+	d_l = 1
+	a_l = 1 # Shifted output fidelity = (a1*(F-1/4) + b1) / (Prob of success)
+	b_l = 0
+
+	return a_l,b_l,c_l,d_l
+
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
 #------------------------------------- SIMULATION -----------------------------------------
@@ -142,10 +168,6 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Ga
 	for t in range(t_end+1):
 		buffered_fidelity_trace[t] = F
 
-		# Decohere
-		if F is not None:
-			F = 0.25 + (F-0.25)*np.exp(-Gamma)
-
 		# Consume and go to next time slot
 		if cons_requests_trace[t] and F is not None:
 			cons_fidelities += [F]
@@ -176,6 +198,10 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Ga
 					# Failure
 					F = None
 				purif_events += [t]
+
+		# Decohere
+		if F is not None:
+			F = 0.25 + (F-0.25)*np.exp(-Gamma)
 
 	# Average consumed fidelity
 	Fcons_avg = np.mean(cons_fidelities)
@@ -223,7 +249,27 @@ def availability(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma
 
 
 	## Compute purification constants ##
-	purif_constants = [policy_DEJMPS(F, rho_new, l) for l in range(1,n+1)]
+	purif_constants = [policy_DEJMPS(rho_new, l) for l in range(1,n+1)]
+
+	## Tilde constants ##
+	a_tilde = sum([purif_constants[l-1][0]*math.comb(n,l)*(1-p_gen)**(n-l)*p_gen**l for l in range(1,n+1)])
+	b_tilde = sum([purif_constants[l-1][1]*math.comb(n,l)*(1-p_gen)**(n-l)*p_gen**l for l in range(1,n+1)])
+	c_tilde = sum([purif_constants[l-1][2]*math.comb(n,l)*(1-p_gen)**(n-l)*p_gen**l for l in range(1,n+1)])
+	d_tilde = sum([purif_constants[l-1][3]*math.comb(n,l)*(1-p_gen)**(n-l)*p_gen**l for l in range(1,n+1)])
+
+	## Big Tilde constants ##
+	A_tilde = (np.exp(-Gamma)*(1-p_cons)*a_tilde) / (1 - np.exp(-Gamma) * (1-p_gen)**n * (1-p_cons))
+	B_tilde = (np.exp(-Gamma)*(1-p_cons)*b_tilde) / (1 - (1-p_gen)**n * (1-p_cons))
+	C_tilde = (np.exp(-Gamma)*(1-p_cons)*c_tilde) / (1 - np.exp(-Gamma) * (1-p_gen)**n * (1-p_cons))
+	D_tilde = (np.exp(-Gamma)*(1-p_cons)*d_tilde) / (1 - (1-p_gen)**n * (1-p_cons))
+
+	## Intermediate variables ##
+	g_new = rho_new[0][0] - 1/4
+	y = ( B_tilde*C_tilde + C_tilde*g_new + D_tilde*(1-A_tilde) ) / ((1-A_tilde)*(1-D_tilde) - B_tilde*C_tilde)
+	expected_T_N = ( np.exp(Gamma)*p_cons*(1+y) ) / ( np.exp(Gamma) - (1-p_gen)**n * (1-p_cons) )**2
+	expected_T_gen = 1 / ( 1 - (1-p_gen)**n )
+
+	return expected_T_N / (expected_T_N + expected_T_gen)
 
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
