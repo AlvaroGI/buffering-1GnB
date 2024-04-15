@@ -62,6 +62,57 @@ def policy_DEJMPS(rho_new, num_new_links):
 
 	return a1,b1,c1,d1
 
+def policy_doubleDEJMPS(rho_new, num_new_links):
+	'''Purification policy:
+		2-to-1: DEJMPS purification protocol.
+		x-to-1: uses one new link for DEJMPS and discards the rest.
+
+	Parameters:
+	- rho_new:	(np.array) Density matrix of newly generated entangled links,
+							written in the Bell-state basis: 00+11, 00-11, 01+10, 01-10.
+							The fidelity is the first entry of the matrix.
+	- num_new_links:	(int) Number of newly generated links. The protocol performs
+								(num_new_links)-to-1 purification.
+
+	Returns:
+	- p_purif_succ:	(float) Probability of success.
+	- F_out:	(float) Output fidelity.'''
+
+	assert num_new_links >= 1
+
+	A_new = rho_new[0][0]
+	B_new = rho_new[3][3]
+	C_new = rho_new[2][2]
+	D_new = rho_new[1][1]
+
+	## Diagonal elements (in Bell-state basis) of the state that will be used to purify the ##
+	## state stored in memory with DEJMPS ##
+	A = rho_new[0][0]
+	B = rho_new[3][3]
+	C = rho_new[2][2]
+	D = rho_new[1][1]
+
+	## Do one application of DEJMPS with the new links ##
+	p_success_newlinks = 1 # Probability of not failing any of these DEJMPS
+	for ii in range(min(num_new_links-1,1)):
+		# Probability of success of step ii
+		p_success_round = (A+B)*(A_new+B_new) + (C+D)*(C_new+D_new)
+		p_success_newlinks = p_success_newlinks*p_success_round
+		# Output state of step ii
+		A = (A*A_new+B*B_new)/p_success_round
+		B = (C*D_new+D*C_new)/p_success_round
+		C = (C*C_new+D*D_new)/p_success_round
+		D = (A*B_new+B*A_new)/p_success_round
+
+	## Use the resulting link to purify the link in memory ##
+	## Purification coefficients ##
+	c_l = (2/3) * (A+B-C-D) * p_success_newlinks
+	d_l = (1/2) * (A+B+C+D) * p_success_newlinks
+	a_l = (1/3) * (A-3*B+2*C+2*D) * p_success_newlinks
+	b_l = (1/4) * (2*A-B-2*C-2*D) * p_success_newlinks
+
+	return a_l,b_l,c_l,d_l
+
 def policy_nestedDEJMPS(rho_new, num_new_links):
 	'''Purification policy:
 		2-to-1: DEJMPS purification protocol.
@@ -78,13 +129,39 @@ def policy_nestedDEJMPS(rho_new, num_new_links):
 	- p_purif_succ:	(float) Probability of success.
 	- F_out:	(float) Output fidelity.'''
 
-	raise ValueError('Not implemented!')
 	assert num_new_links >= 1
 
-	while num_new_links > 0:
-		#purify 
+	A_new = rho_new[0][0]
+	B_new = rho_new[3][3]
+	C_new = rho_new[2][2]
+	D_new = rho_new[1][1]
 
-		num_new_links -= 1
+	## Diagonal elements (in Bell-state basis) of the state that will be used to purify the ##
+	## state stored in memory with DEJMPS ##
+	A = rho_new[0][0]
+	B = rho_new[3][3]
+	C = rho_new[2][2]
+	D = rho_new[1][1]
+
+	## Do num_new_links-1 applications of DEJMPS with the new links ##
+	p_success_newlinks = 1 # Probability of not failing any of these DEJMPS
+	for ii in range(num_new_links-1):
+		# Probability of success of step ii
+		p_success_round = (A+B)*(A_new+B_new) + (C+D)*(C_new+D_new)
+		p_success_newlinks = p_success_newlinks*p_success_round
+		# Output state of step ii
+		A = (A*A_new+B*B_new)/p_success_round
+		B = (C*D_new+D*C_new)/p_success_round
+		C = (C*C_new+D*D_new)/p_success_round
+		D = (A*B_new+B*A_new)/p_success_round
+
+	## Use the resulting link to purify the link in memory ##
+	## Purification coefficients ##
+	c_l = (2/3) * (A+B-C-D) * p_success_newlinks
+	d_l = (1/2) * (A+B+C+D) * p_success_newlinks
+	a_l = (1/3) * (A-3*B+2*C+2*D) * p_success_newlinks
+	b_l = (1/4) * (2*A-B-2*C-2*D) * p_success_newlinks
+
 	return a_l,b_l,c_l,d_l
 
 def policy_identity(rho_new, num_new_links):
@@ -411,8 +488,8 @@ def plot_run_1GnB(Fcons_avg, buffered_fidelity_trace, cons_requests_trace, purif
 
 def AFplot(policy_names, sim_data=None, theory_data=None, filename=None):
     fig, ax = plt.subplots()
-    colors = ['tab:blue', 'tab:orange', 'tab:purple']
-    markers = ['^','v','o','s']
+    colors = ['k', 'tab:blue', 'tab:orange', 'tab:purple']
+    markers = ['^','v','o','s','d']
 
     if sim_data:
         for idx_policy, policy in enumerate(policy_names):
