@@ -88,6 +88,32 @@ def policy_identity(rho_new, num_new_links):
 
 	return a_l,b_l,c_l,d_l
 
+def policy_replacement(rho_new, num_new_links):
+	'''Purification policy:
+		x-to-1: replaces the link in memory with a fresh one.
+
+	Parameters:
+	- rho_new:	(np.array) Density matrix of newly generated entangled links,
+							written in the Bell-state basis: 00+11, 00-11, 01+10, 01-10.
+							The fidelity is the first entry of the matrix.
+	- num_new_links:	(int) Number of newly generated links. The protocol performs
+								(num_new_links)-to-1 purification.
+
+	Returns:'''
+
+	assert num_new_links >= 1
+
+	#p_purif_succ = (A+B)*(A_werner+B_werner) + (C+D)*(C_werner+D_werner)
+	#F_out = (A*A_werner + B*B_werner) / p_purif_succ
+
+	## Purification coefficients ##
+	c_l = 0 # Prob of success = c1*(F-1/4) + d1
+	d_l = 1
+	a_l = 0 # Shifted output fidelity = (a1*(F-1/4) + b1) / (Prob of success)
+	b_l = rho_new[0][0]-1/4
+
+	return a_l,b_l,c_l,d_l
+
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
 #------------------------------------- SIMULATION -----------------------------------------
@@ -381,8 +407,18 @@ def AFplot(policy_names, sim_data=None, theory_data=None, filename=None):
     plt.legend()
     plt.xlabel(r'Availability')
     plt.ylabel(r'Avg. consumed fidelity')
-    plt.xlim(0.6,0.75)
-    plt.ylim(0.6,0.9)
+
+    dA = 0.05
+    xmin = round(np.floor(np.min(theory_data['A']) / dA) * dA,2)
+    xmax = round(np.ceil(np.max(theory_data['A']) / dA) * dA,2)
+    plt.xlim(xmin, xmax)
+    dF = 0.05
+    ymin = round(np.floor(np.min(theory_data['Fcons_avg']) / dF) * dF,2)
+    ymax = round(np.ceil(np.max(theory_data['Fcons_avg']) / dF) * dF,2)
+    plt.ylim(ymin, ymax)
+    
+    ax.set_xticks(np.arange(xmin,xmax*1.0001,dA))
+    ax.set_yticks(np.arange(ymin,ymax*1.0001,dF))
     
     if filename:
         print('Save not implemented')
