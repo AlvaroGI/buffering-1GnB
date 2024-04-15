@@ -358,7 +358,35 @@ def plot_run_1GnB(Fcons_avg, buffered_fidelity_trace, cons_requests_trace, purif
 	plt.legend()
 
 
+def AFplot(policy_names, sim_data=None, theory_data=None, filename=None):
+    fig, ax = plt.subplots()
+    colors = ['tab:blue', 'tab:orange', 'tab:purple']
+    markers = ['^','v','o','s']
 
+    if sim_data:
+        for idx_policy, policy in enumerate(policy_names):
+            plt.errorbar(sim_data['A_avg_vec'][idx_policy], sim_data['Fcons_avg_vec'][idx_policy],
+                         xerr=sim_data['A_stderr_vec'][idx_policy],
+                         yerr=sim_data['Fcons_stderr_vec'][idx_policy],
+                         marker=markers[idx_policy], color=colors[idx_policy],
+                         linestyle=':', capsize=3, label=policy+' (sim.)')
+    
+    if theory_data:
+        for idx_policy, policy in enumerate(policy_names):
+            plt.plot(theory_data['A'][idx_policy], theory_data['Fcons_avg'][idx_policy],
+                         color=colors[idx_policy], linestyle='-', label=policy+' (theory)')
+        
+    
+    # Plot specs
+    plt.legend()
+    plt.xlabel(r'Availability')
+    plt.ylabel(r'Avg. consumed fidelity')
+    plt.xlim(0.6,0.75)
+    plt.ylim(0.6,0.9)
+    
+    if filename:
+        print('Save not implemented')
+    return
 
 
 
