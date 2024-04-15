@@ -62,6 +62,31 @@ def policy_DEJMPS(rho_new, num_new_links):
 
 	return a1,b1,c1,d1
 
+def policy_nestedDEJMPS(rho_new, num_new_links):
+	'''Purification policy:
+		2-to-1: DEJMPS purification protocol.
+		x-to-1: uses one new link for DEJMPS and discards the rest.
+
+	Parameters:
+	- rho_new:	(np.array) Density matrix of newly generated entangled links,
+							written in the Bell-state basis: 00+11, 00-11, 01+10, 01-10.
+							The fidelity is the first entry of the matrix.
+	- num_new_links:	(int) Number of newly generated links. The protocol performs
+								(num_new_links)-to-1 purification.
+
+	Returns:
+	- p_purif_succ:	(float) Probability of success.
+	- F_out:	(float) Output fidelity.'''
+
+	raise ValueError('Not implemented!')
+	assert num_new_links >= 1
+
+	while num_new_links > 0:
+		#purify 
+
+		num_new_links -= 1
+	return a_l,b_l,c_l,d_l
+
 def policy_identity(rho_new, num_new_links):
 	'''Purification policy:
 		x-to-1: discards new links, keeps the one in memory.
