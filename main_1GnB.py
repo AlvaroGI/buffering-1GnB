@@ -349,8 +349,9 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Ga
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
 
-def availability(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons):
-	'''Computes the availability using our analytical solution.
+def analytical_availability_Fcons(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons):
+	'''Computes the availability and the average consumed fidelity (Fcons)
+		using our analytical solution.
 
 	Parameters:
 	- n:		(int) Number of bad memories.
@@ -377,7 +378,7 @@ def availability(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma
 
 
 	## Compute purification constants ##
-	purif_constants = [policy_DEJMPS(rho_new, l) for l in range(1,n+1)]
+	purif_constants = [purif_policy(rho_new, l) for l in range(1,n+1)]
 
 	## Tilde constants ##
 	a_tilde = sum([purif_constants[l-1][0]*math.comb(n,l)*(1-p_gen)**(n-l)*p_gen**l for l in range(1,n+1)])
@@ -387,17 +388,22 @@ def availability(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma
 
 	## Big Tilde constants ##
 	A_tilde = (np.exp(-Gamma)*(1-p_cons)*a_tilde) / (1 - np.exp(-Gamma) * (1-p_gen)**n * (1-p_cons))
-	B_tilde = (np.exp(-Gamma)*(1-p_cons)*b_tilde) / (1 - (1-p_gen)**n * (1-p_cons))
+	B_tilde = ((1-p_cons)*b_tilde) / (1 - (1-p_gen)**n * (1-p_cons))
 	C_tilde = (np.exp(-Gamma)*(1-p_cons)*c_tilde) / (1 - np.exp(-Gamma) * (1-p_gen)**n * (1-p_cons))
-	D_tilde = (np.exp(-Gamma)*(1-p_cons)*d_tilde) / (1 - (1-p_gen)**n * (1-p_cons))
+	D_tilde = ((1-p_cons)*d_tilde) / (1 - (1-p_gen)**n * (1-p_cons))
 
 	## Intermediate variables ##
 	g_new = rho_new[0][0] - 1/4
 	y = ( B_tilde*C_tilde + C_tilde*g_new + D_tilde*(1-A_tilde) ) / ((1-A_tilde)*(1-D_tilde) - B_tilde*C_tilde)
-	expected_T_N = ( np.exp(Gamma)*p_cons*(1+y) ) / ( np.exp(Gamma) - (1-p_gen)**n * (1-p_cons) )**2
+	x = ( A_tilde*g_new*(1-D_tilde) + B_tilde + B_tilde*C_tilde*g_new ) / ( (1-A_tilde)*(1-D_tilde) - B_tilde*C_tilde )
+	expected_T_N = (1+y) / ( 1 - (1-p_gen)**n * (1-p_cons) )
 	expected_T_gen = 1 / ( 1 - (1-p_gen)**n )
 
-	return expected_T_N / (expected_T_N + expected_T_gen)
+	## Availability and Fcons ##
+	A = expected_T_N / (expected_T_N + expected_T_gen)
+	Fcons = 1/4 + (g_new+x)*( 1-(1-p_cons)*(1-p_gen)**n ) / ( (1+y) * (np.exp(Gamma)-(1-p_cons)*(1-p_gen)**n) )
+
+	return A, Fcons
 
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
