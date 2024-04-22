@@ -294,6 +294,10 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Ga
 	# Run process
 	#------------------------------------------------------
 	for t in range(t_end+1):
+		# Decohere
+		if F is not None:
+			F = 0.25 + (F-0.25)*np.exp(-Gamma)
+
 		buffered_fidelity_trace[t] = F
 
 		# Consume and go to next time slot
@@ -326,10 +330,6 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Ga
 					# Failure
 					F = None
 				purif_events += [t]
-
-		# Decohere
-		if F is not None:
-			F = 0.25 + (F-0.25)*np.exp(-Gamma)
 
 	# Average consumed fidelity
 	Fcons_avg = np.mean(cons_fidelities)
