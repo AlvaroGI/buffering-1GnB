@@ -13,6 +13,7 @@ from scipy import stats
 from scipy.optimize import fsolve
 from tqdm import tqdm
 from tqdm.notebook import tqdm as tqdmn
+import functools
 
 
 #------------------------------------------------------------------------------------------
@@ -20,6 +21,20 @@ from tqdm.notebook import tqdm as tqdmn
 #-------------------------------- PURIFICATION POLICIES -----------------------------------
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
+def policy_label_to_function(policy_name):
+	if policy_name == 'Identity':
+		policy = policy_identity
+	elif policy_name == 'Replacement':
+		policy = policy_replacement
+	elif policy_name == 'DEJMPS':
+		policy = policy_DEJMPS
+	elif policy_name == 'Double DEJMPS':
+		policy = policy_doubleDEJMPS
+	elif policy_name[0:15] == 'Nested DEJMPS x':
+		policy = functools.partial(policy_nestedDEJMPS, max_links_used=int(policy_name[15:]))
+	else:
+		raise ValueError('Unknown policy')
+	return policy
 
 def policy_DEJMPS(rho_new, num_new_links):
 	'''Purification policy:
@@ -113,10 +128,9 @@ def policy_doubleDEJMPS(rho_new, num_new_links):
 
 	return a_l,b_l,c_l,d_l
 
-def policy_nestedDEJMPS(rho_new, num_new_links):
+def policy_nestedDEJMPS(rho_new, num_new_links, max_links_used=1):
 	'''Purification policy:
-		2-to-1: DEJMPS purification protocol.
-		x-to-1: uses one new link for DEJMPS and discards the rest.
+		x-to-1: applies DEJMPS purification protocol at most max_links_used times.
 
 	Parameters:
 	- rho_new:	(np.array) Density matrix of newly generated entangled links,
@@ -143,9 +157,9 @@ def policy_nestedDEJMPS(rho_new, num_new_links):
 	C = rho_new[2][2]
 	D = rho_new[1][1]
 
-	## Do num_new_links-1 applications of DEJMPS with the new links ##
+	## Do at most min(num_new_links-1, max_links_used-1) applications of DEJMPS with the new links ##
 	p_success_newlinks = 1 # Probability of not failing any of these DEJMPS
-	for ii in range(num_new_links-1):
+	for ii in range(min(num_new_links-1, max_links_used-1)):
 		# Probability of success of step ii
 		p_success_round = (A+B)*(A_new+B_new) + (C+D)*(C_new+D_new)
 		p_success_newlinks = p_success_newlinks*p_success_round
@@ -387,21 +401,22 @@ def analytical_availability_Fcons(n, p_gen, rho_new, q_purif, purif_policy, pur_
 	d_tilde = sum([purif_constants[l-1][3]*math.comb(n,l)*(1-p_gen)**(n-l)*p_gen**l for l in range(1,n+1)])
 
 	## Big Tilde constants ##
-	A_tilde = (np.exp(-Gamma)*(1-p_cons)*a_tilde) / (1 - np.exp(-Gamma) * (1-p_gen)**n * (1-p_cons))
-	B_tilde = ((1-p_cons)*b_tilde) / (1 - (1-p_gen)**n * (1-p_cons))
-	C_tilde = (np.exp(-Gamma)*(1-p_cons)*c_tilde) / (1 - np.exp(-Gamma) * (1-p_gen)**n * (1-p_cons))
-	D_tilde = ((1-p_cons)*d_tilde) / (1 - (1-p_gen)**n * (1-p_cons))
+	A_tilde = (q_purif * np.exp(-Gamma)*(1-p_cons)*a_tilde) / (1 - np.exp(-Gamma) * (1-q_purif+q_purif*(1-p_gen)**n) * (1-p_cons))
+	B_tilde = (q_purif * (1-p_cons)*b_tilde) / ( p_cons + q_purif*(1-(1-p_gen)**n)*(1-p_cons) )
+	C_tilde = (q_purif * np.exp(-Gamma)*(1-p_cons)*c_tilde) / (1 - np.exp(-Gamma) * (1-q_purif+q_purif*(1-p_gen)**n) * (1-p_cons))
+	D_tilde = (q_purif * (1-p_cons)*d_tilde) / ( p_cons + q_purif*(1-(1-p_gen)**n)*(1-p_cons) )
 
 	## Intermediate variables ##
 	g_new = rho_new[0][0] - 1/4
 	y = ( B_tilde*C_tilde + C_tilde*g_new + D_tilde*(1-A_tilde) ) / ((1-A_tilde)*(1-D_tilde) - B_tilde*C_tilde)
 	x = ( A_tilde*g_new*(1-D_tilde) + B_tilde + B_tilde*C_tilde*g_new ) / ( (1-A_tilde)*(1-D_tilde) - B_tilde*C_tilde )
-	expected_T_N = (1+y) / ( 1 - (1-p_gen)**n * (1-p_cons) )
+	expected_T_N = (1+y) / ( p_cons + q_purif * (1-(1-p_gen)**n) * (1-p_cons) )
 	expected_T_gen = 1 / ( 1 - (1-p_gen)**n )
 
 	## Availability and Fcons ##
 	A = expected_T_N / (expected_T_N + expected_T_gen)
-	Fcons = 1/4 + (g_new+x)*( 1-(1-p_cons)*(1-p_gen)**n ) / ( (1+y) * (np.exp(Gamma)-(1-p_cons)*(1-p_gen)**n) )
+	Fcons = 1/4 + (g_new+x)*( p_cons + q_purif * (1-(1-p_gen)**n) * (1-p_cons) ) / ( (1+y)
+						* (np.exp(Gamma) - 1 + p_cons + q_purif * (1-(1-p_gen)**n) * (1-p_cons) ) )
 
 	return A, Fcons
 
@@ -493,46 +508,77 @@ def plot_run_1GnB(Fcons_avg, buffered_fidelity_trace, cons_requests_trace, purif
 
 
 def AFplot(policy_names, sim_data=None, theory_data=None, filename=None):
-    fig, ax = plt.subplots()
-    colors = ['k', 'tab:blue', 'tab:orange', 'tab:purple']
-    markers = ['^','v','o','s','d']
+	fig, ax = plt.subplots()
+	
+	## Colors and markers ##
+	#colors = ['k', 'tab:blue', 'tab:orange', 'tab:purple']
+	cmap = plt.cm.get_cmap('inferno')
+	colors = [cmap(i/len(policy_names)) for i in range(len(policy_names))]
+	markers = ['^','v','o','s','d']
 
-    if sim_data:
-        for idx_policy, policy in enumerate(policy_names):
-            plt.errorbar(sim_data['A_avg_vec'][idx_policy], sim_data['Fcons_avg_vec'][idx_policy],
-                         xerr=sim_data['A_stderr_vec'][idx_policy],
-                         yerr=sim_data['Fcons_stderr_vec'][idx_policy],
-                         marker=markers[idx_policy], color=colors[idx_policy],
-                         linestyle=':', capsize=3, label=policy+' (sim.)')
-    
-    if theory_data:
-        for idx_policy, policy in enumerate(policy_names):
-            plt.plot(theory_data['A'][idx_policy], theory_data['Fcons_avg'][idx_policy],
-                         color=colors[idx_policy], linestyle='-', label=policy+' (theory)')
-        
-    
-    # Plot specs
-    plt.legend()
-    plt.xlabel(r'Availability')
-    plt.ylabel(r'Avg. consumed fidelity')
+	## Plot simulation data ##
+	if sim_data:
+		for idx_policy, policy in enumerate(policy_names):
+			plt.errorbar(sim_data['A_avg_vec'][idx_policy], sim_data['Fcons_avg_vec'][idx_policy],
+						 xerr=sim_data['A_stderr_vec'][idx_policy],
+						 yerr=sim_data['Fcons_stderr_vec'][idx_policy],
+						 marker=markers[idx_policy], color=colors[idx_policy],
+						 linestyle=':', capsize=3, label=policy+' (sim.)')
+	
+	## Plot theory data ##
+	if theory_data:
+		for idx_policy, policy in enumerate(policy_names):
+			plt.plot(theory_data['A'][idx_policy], theory_data['Fcons_avg'][idx_policy],
+						 color=colors[idx_policy], linestyle='-', label=policy+' (theory)')
+		
+	
+	## Plot specs ##
+	plt.legend()
+	plt.xlabel(r'Availability')
+	plt.ylabel(r'Avg. consumed fidelity')
 
-    dA = 0.05
-    xmin = round(np.floor(np.min(theory_data['A']) / dA) * dA,2)
-    xmax = round(np.ceil(np.max(theory_data['A']) / dA) * dA,2)
-    plt.xlim(xmin, xmax)
-    dF = 0.05
-    ymin = round(np.floor(np.min(theory_data['Fcons_avg']) / dF) * dF,2)
-    ymax = round(np.ceil(np.max(theory_data['Fcons_avg']) / dF) * dF,2)
-    plt.ylim(ymin, ymax)
-    
-    ax.set_xticks(np.arange(xmin,xmax*1.0001,dA))
-    ax.set_yticks(np.arange(ymin,ymax*1.0001,dF))
-    
-    if filename:
-        print('Save not implemented')
-    return
+	dA = 0.05
+	xmin = round(np.floor(np.min(theory_data['A']) / dA) * dA,2)
+	xmax = round(np.ceil(np.max(theory_data['A']) / dA) * dA,2)
+	plt.xlim(xmin, xmax)
+	dF = 0.05
+	ymin = round(np.floor(np.min(theory_data['Fcons_avg']) / dF) * dF,2)
+	ymax = round(np.ceil(np.max(theory_data['Fcons_avg']) / dF) * dF,2)
+	plt.ylim(ymin, ymax)
+	
+	ax.set_xticks(np.arange(xmin,xmax*1.0001,dA))
+	ax.set_yticks(np.arange(ymin,ymax*1.0001,dF))
+	
+	if filename:
+		print('Save not implemented')
+	return
 
+def AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_after_swap, Gamma, p_cons):
+	if varying_param=='q_purif':
+		varying_array = q_purif
+	else:
+		raise ValueError('Unknown varying_param')
 
+	## COMPUTE THEORY ##
+	Fcons_theory_vec = [[] for policy in policy_names]
+	A_theory_vec = [[] for policy in policy_names]
+
+	for idx_policy, policy_name in enumerate(policy_names):
+		purif_policy = policy_label_to_function(policy_name)
+		for x in varying_array:
+			if varying_param=='q_purif':
+				q_purif = x
+			else:
+				raise ValueError('Unknown varying_param')
+			A, Fcons = analytical_availability_Fcons(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons)
+			Fcons_theory_vec[idx_policy] += [Fcons]
+			A_theory_vec[idx_policy] += [A]
+	theory_data = {'Fcons_avg': Fcons_theory_vec, 'A': A_theory_vec}
+
+	## PLOT ##
+	AFplot(policy_names, sim_data=None, theory_data=theory_data, filename=None)
+
+	return
 
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
