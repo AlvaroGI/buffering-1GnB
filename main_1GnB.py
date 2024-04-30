@@ -15,6 +15,11 @@ from tqdm import tqdm
 from tqdm.notebook import tqdm as tqdmn
 import functools
 
+# Jupyter widgets
+import ipywidgets
+import pandas as pd
+from IPython.display import clear_output
+from IPython.display import display
 
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
@@ -507,8 +512,14 @@ def plot_run_1GnB(Fcons_avg, buffered_fidelity_trace, cons_requests_trace, purif
 	plt.legend()
 
 
-def AFplot(policy_names, sim_data=None, theory_data=None, filename=None):
+def AFplot(policy_names, sim_data=None, theory_data=None, filename=None, xlims=None, ylims=None):
 	fig, ax = plt.subplots()
+
+	if filename:
+		figsize_cm = 9
+	else:
+		figsize_cm = 20
+	fig.set_size_inches(figsize_cm/2.54, figsize_cm/2.54)
 	
 	## Colors and markers ##
 	#colors = ['k', 'tab:blue', 'tab:orange', 'tab:purple']
@@ -538,14 +549,21 @@ def AFplot(policy_names, sim_data=None, theory_data=None, filename=None):
 	plt.ylabel(r'Avg. consumed fidelity')
 
 	dA = 0.05
-	xmin = round(np.floor(np.min(theory_data['A']) / dA) * dA,2)
-	xmax = round(np.ceil(np.max(theory_data['A']) / dA) * dA,2)
-	plt.xlim(xmin, xmax)
+	if xlims==None:
+		xmin = round(np.floor(np.min(theory_data['A']) / dA) * dA,2)
+		xmax = round(np.ceil(np.max(theory_data['A']) / dA) * dA,2)
+	else:
+		xmin = xlims[0]
+		xmax = xlims[1]
 	dF = 0.05
-	ymin = round(np.floor(np.min(theory_data['Fcons_avg']) / dF) * dF,2)
-	ymax = round(np.ceil(np.max(theory_data['Fcons_avg']) / dF) * dF,2)
+	if ylims==None:
+		ymin = round(np.floor(np.min(theory_data['Fcons_avg']) / dF) * dF,2)
+		ymax = round(np.ceil(np.max(theory_data['Fcons_avg']) / dF) * dF,2)
+	else:
+		ymin = ylims[0]
+		ymax = ylims[1]
+	plt.xlim(xmin, xmax)
 	plt.ylim(ymin, ymax)
-	
 	ax.set_xticks(np.arange(xmin,xmax*1.0001,dA))
 	ax.set_yticks(np.arange(ymin,ymax*1.0001,dF))
 	
@@ -555,7 +573,7 @@ def AFplot(policy_names, sim_data=None, theory_data=None, filename=None):
 		plt.show()
 	return
 
-def AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_after_swap, Gamma, p_cons):
+def AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_after_swap, Gamma, p_cons, savefig=False, xlims=None, ylims=None):
 	if varying_param=='q_purif':
 		varying_array = q_purif
 	else:
@@ -578,16 +596,87 @@ def AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_a
 	theory_data = {'Fcons_avg': Fcons_theory_vec, 'A': A_theory_vec}
 
 	## PLOT ##
-	filename = 'figs/AF_theory_%s'%varying_param
-	if varying_param=='q_purif':
-		filename += '_n%d_pgen%.3f_pcons%.3f_rhodiag-%.3f-%.3f-%.3f-%.3f_swapandpur%s_G%.5f.pdf'%(n, p_gen, p_cons,
-						rho_new[0][0], rho_new[1][1], rho_new[2][2], rho_new[3][3], pur_after_swap, Gamma)
+	if savefig:
+		filename = 'figs/AF_theory_%s'%varying_param
+		if varying_param=='q_purif':
+			filename += '_n%d_pgen%.3f_pcons%.3f_rhodiag-%.3f-%.3f-%.3f-%.3f_swapandpur%s_G%.5f.pdf'%(n, p_gen, p_cons,
+							rho_new[0][0], rho_new[1][1], rho_new[2][2], rho_new[3][3], pur_after_swap, Gamma)
+		else:
+			raise ValueError('Unknown varying_param')
 	else:
-		raise ValueError('Unknown varying_param')
-	pur_after_swap, Gamma, p_cons
+		filename = None
+	AFplot(policy_names, sim_data=None, theory_data=theory_data, filename=filename, xlims=xlims, ylims=xlims)
 
-	AFplot(policy_names, sim_data=None, theory_data=theory_data, filename=filename)
+	return
 
+def AFplot_interactive(policy_names):
+	## Widgets specs ##
+	slider_layout = ipywidgets.Layout(width='60%')
+
+	## Plot specs ##
+	xlims = [0.5,1]
+	ylims = [0.5,1]
+
+
+
+	def AFplot_simple_inputs(n, p_gen, new_states, gen_tradeoff_parameter, rho00, rho11, rho22, Gammainv, p_cons, policy_names):
+		if new_states == 'Werner':
+			rho_new = np.diag([rho00, (1-rho00)/3, (1-rho00)/3, (1-rho00)/3])
+		elif new_states == 'Werner tradeoff':
+			rho00 = 1-gen_tradeoff_parameter*p_gen
+			rho_new = np.diag([rho00, (1-rho00)/3, (1-rho00)/3, (1-rho00)/3])
+		elif new_states == 'Bell-diagonal':
+			if rho00+rho11+rho22 > 1:
+				print('Invalid density matrix')
+				return
+			rho_new = np.diag([rho00, rho11, rho22, 1-rho00-rho11-rho22])
+		elif new_states == 'R-state':
+			rho_new = np.diag([rho00, 0, (1-rho00)/2, (1-rho00)/2])
+
+		pur_after_swap = False
+		varying_param = 'q_purif'
+		q_purif = np.linspace(0,1,10)
+		Gamma = 1/Gammainv
+
+		AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_after_swap, Gamma, p_cons,
+						savefig=False, xlims=xlims, ylims=ylims)
+		return
+
+	new_states_widget = widgets.RadioButtons(options=['Werner', 'Werner tradeoff', 'Bell-diagonal', 'R-state'], value='Werner', description=r'$\rho_\mathrm{new}$')
+	rho00_widget = widgets.FloatSlider(value=0.9, min=0.5, max=1, step=0.05, description=r'$F_\mathrm{new}$', layout=slider_layout)
+	rho11_widget = widgets.FloatSlider(value=0.033, min=0, max=0.1, step=0.001, description=r'$\rho_\mathrm{new,11}$', disabled=True, layout=slider_layout)
+	rho22_widget = widgets.FloatSlider(value=0.033, min=0, max=0.1, step=0.001, description=r'$\rho_\mathrm{new,22}$', disabled=True, layout=slider_layout)
+	gen_tradeoff_widget = widgets.FloatSlider(value=0.5, min=0, max=1, step=0.5, description=r'$\lambda_\mathrm{gen}$', disabled=True, layout=slider_layout)
+	def update_rho_new_widgets(*args):
+		if new_states_widget.value in ['Werner', 'Werner tradeoff', 'R-state']:
+			rho11_widget.disabled = True
+			rho22_widget.disabled = True
+		else:
+			rho11_widget.disabled = False
+			rho22_widget.disabled = False
+		if new_states_widget.value in ['Werner tradeoff']:
+			gen_tradeoff_widget.disabled = False
+			rho00_widget.disabled = True
+		else:
+			gen_tradeoff_widget.disabled = True
+			rho00_widget.disabled = False
+		rho11_widget.max = 1-rho00_widget.value
+		rho22_widget.max = 1-rho00_widget.value-rho11_widget.value
+	new_states_widget.observe(update_rho_new_widgets, 'value')
+	rho00_widget.observe(update_rho_new_widgets, 'value')
+	rho11_widget.observe(update_rho_new_widgets, 'value')
+
+	ipywidgets.interact(AFplot_simple_inputs,
+		n = widgets.IntSlider(value=10, min=1, max=15, step=1, layout=slider_layout),
+		p_gen = widgets.FloatSlider(value=0.5, min=0, max=1, step=0.05, description=r'$p_\mathrm{gen}$', layout=slider_layout),
+		new_states = new_states_widget,
+		gen_tradeoff_parameter = gen_tradeoff_widget,
+		rho00 = rho00_widget,
+		rho11 = rho11_widget,
+		rho22 = rho22_widget,
+		Gammainv = widgets.FloatSlider(value=5, min=0, max=20, step=1, description=r'1/$\Gamma$', layout=slider_layout),# continuous_update=False),
+		p_cons = widgets.FloatSlider(value=0.1, min=0, max=0.3, step=0.01, description=r'$p_\mathrm{cons}$', layout=slider_layout),
+		policy_names = widgets.SelectMultiple(options=policy_names, value=policy_names, rows=len(policy_names), description='Display'))
 	return
 
 #------------------------------------------------------------------------------------------
