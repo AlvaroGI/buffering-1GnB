@@ -550,7 +550,9 @@ def AFplot(policy_names, sim_data=None, theory_data=None, filename=None):
 	ax.set_yticks(np.arange(ymin,ymax*1.0001,dF))
 	
 	if filename:
-		print('Save not implemented')
+		plt.savefig(filename, dpi=300, bbox_inches='tight')
+	else:
+		plt.show()
 	return
 
 def AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_after_swap, Gamma, p_cons):
@@ -576,7 +578,15 @@ def AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_a
 	theory_data = {'Fcons_avg': Fcons_theory_vec, 'A': A_theory_vec}
 
 	## PLOT ##
-	AFplot(policy_names, sim_data=None, theory_data=theory_data, filename=None)
+	filename = 'figs/AF_theory_%s'%varying_param
+	if varying_param=='q_purif':
+		filename += '_n%d_pgen%.3f_pcons%.3f_rhodiag-%.3f-%.3f-%.3f-%.3f_swapandpur%s_G%.5f.pdf'%(n, p_gen, p_cons,
+						rho_new[0][0], rho_new[1][1], rho_new[2][2], rho_new[3][3], pur_after_swap, Gamma)
+	else:
+		raise ValueError('Unknown varying_param')
+	pur_after_swap, Gamma, p_cons
+
+	AFplot(policy_names, sim_data=None, theory_data=theory_data, filename=filename)
 
 	return
 
