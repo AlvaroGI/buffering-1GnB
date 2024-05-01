@@ -647,7 +647,7 @@ def AFplot_interactive(policy_names):
 	rho00_widget = widgets.FloatSlider(value=0.9, min=0.5, max=1, step=0.05, description=r'$F_\mathrm{new}$', layout=slider_layout)
 	rho11_widget = widgets.FloatSlider(value=0.033, min=0, max=0.1, step=0.001, description=r'$\rho_\mathrm{new,11}$', disabled=True, layout=slider_layout)
 	rho22_widget = widgets.FloatSlider(value=0.033, min=0, max=0.1, step=0.001, description=r'$\rho_\mathrm{new,22}$', disabled=True, layout=slider_layout)
-	gen_tradeoff_widget = widgets.FloatSlider(value=0.5, min=0, max=1, step=0.5, description=r'$\lambda_\mathrm{gen}$', disabled=True, layout=slider_layout)
+	gen_tradeoff_widget = widgets.FloatSlider(value=0.5, min=0, max=1, step=0.1, description=r'$\lambda_\mathrm{gen}$', disabled=True, layout=slider_layout)
 	def update_rho_new_widgets(*args):
 		if new_states_widget.value in ['Werner', 'Werner tradeoff', 'R-state']:
 			rho11_widget.disabled = True
