@@ -236,6 +236,70 @@ def policy_replacement(rho_new, num_new_links):
 
 	return a_l,b_l,c_l,d_l
 
+def policy_Jansen(rho_new, num_new_links):
+	'''Purification policy:
+		num_new_links=1: DEJMPS purification protocol.
+		num_new_links>1: Apply the optimal protocol from Appendix E from Jansen
+						on the new links (only applies to Werner states).
+						Then use the remaining link to do DEJMPS on the buffered
+						link. If num_new_links>8, it only uses 8 new links
+						and discards the rest.
+
+	Parameters:
+	- rho_new:	(np.array) Density matrix of newly generated entangled links,
+							written in the Bell-state basis: 00+11, 00-11, 01+10, 01-10.
+							The fidelity is the first entry of the matrix.
+	- num_new_links:	(int) Number of newly generated links. The protocol performs
+								(num_new_links)-to-1 purification.
+
+	Returns: ...'''
+
+	assert num_new_links >= 1
+	
+	## The Jansen policy only works for Werner states ##
+	assert isWerner(rho_new)
+
+	## Diagonal elements of the newly generated state (in Bell-state basis) ##
+	A_new = rho_new[0][0]
+	B_new = rho_new[3][3]
+	C_new = rho_new[2][2]
+	D_new = rho_new[1][1]
+
+	## Compute the probability of not failing the purification of new links ##
+	if num_new_links==1:
+		p_success_newlinks = 1
+	elif num_new_links==2:
+		p_success_newlinks = (8/9)*A**2 - (4/9)*A + 5/9
+	elif num_new_links==3:
+		p_success_newlinks = (32/27)*A**3 - (4/9)*A**2 + 7/27
+	### HEREEEEE
+
+
+	## And the fidelity of the state after num_new_links-to-1 purifications ##
+	if num_new_links==1:
+		A = A_new
+	elif num_new_links==2:
+		A = ( (10/9)*A**2 - (2/9)*A + 1/9 )/p_success_newlinks
+	elif num_new_links==3:
+		A = ( (28/27)*A**3 - (1/9)*A + 2/27 )/p_success_newlinks
+	### AND HEREEEEE
+
+
+
+	## Since the state is Werner, the other diagonal elements are trivial to compute ##
+	B = (1-A)/3
+	C = (1-A)/3
+	D = (1-A)/3
+
+	## Use the resulting link to purify the link in memory ##
+	## Purification coefficients ##
+	c_l = (2/3) * (A+B-C-D) * p_success_newlinks
+	d_l = (1/2) * (A+B+C+D) * p_success_newlinks
+	a_l = (1/3) * (A-3*B+2*C+2*D) * p_success_newlinks
+	b_l = (1/4) * (2*A-B-2*C-2*D) * p_success_newlinks
+
+	return a_l,b_l,c_l,d_l
+
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
 #------------------------------------- SIMULATION -----------------------------------------
@@ -368,6 +432,16 @@ def single_run_1GnB(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Ga
 #------------------------------------- ANALYTICS ------------------------------------------
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
+
+def isWerner(rho):
+	'''Checks if a two-qubit density matrix is a Werner state'''
+	result = True * (rho[1][1] == rho[2][2]) * (rho[1][1] == rho[3][3])
+	rho_zeros = (rho==0)
+	for i in range(len(rho)):
+		for j in range(len(rho)):
+			if i != j:
+				result *= rho_zeros[i][j]
+	return result
 
 def analytical_availability_Fcons(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons):
 	'''Computes the availability and the average consumed fidelity (Fcons)
