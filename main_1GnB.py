@@ -17,6 +17,7 @@ import functools
 
 # Jupyter widgets
 import ipywidgets
+from ipywidgets import widgets
 import pandas as pd
 from IPython.display import clear_output
 from IPython.display import display
