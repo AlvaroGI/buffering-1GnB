@@ -28,6 +28,7 @@ from IPython.display import display
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
 def policy_label_to_function(policy_name):
+	print(policy_name)
 	if policy_name == 'Identity':
 		policy = policy_identity
 	elif policy_name == 'Replacement':
@@ -38,6 +39,8 @@ def policy_label_to_function(policy_name):
 		policy = policy_doubleDEJMPS
 	elif policy_name[0:15] == 'Nested DEJMPS x':
 		policy = functools.partial(policy_nestedDEJMPS, max_links_used=int(policy_name[15:]))
+	elif policy_name == 'Optimal bi. Cliff.':
+		policy = policy_opt_bilocal_Clifford
 	else:
 		raise ValueError('Unknown policy')
 	return policy
@@ -236,11 +239,11 @@ def policy_replacement(rho_new, num_new_links):
 
 	return a_l,b_l,c_l,d_l
 
-def policy_Jansen(rho_new, num_new_links):
+def policy_opt_bilocal_Clifford(rho_new, num_new_links):
 	'''Purification policy:
 		num_new_links=1: DEJMPS purification protocol.
-		num_new_links>1: Apply the optimal protocol from Appendix E from Jansen
-						on the new links (only applies to Werner states).
+		num_new_links>1: Apply the optimal bilocal Clifford protocol from Appendix E
+						from Jansen2022 on the new links (only applies to Werner states).
 						Then use the remaining link to do DEJMPS on the buffered
 						link. If num_new_links>8, it only uses 8 new links
 						and discards the rest.
@@ -266,13 +269,25 @@ def policy_Jansen(rho_new, num_new_links):
 	D_new = rho_new[1][1]
 
 	## Compute the probability of not failing the purification of new links ##
+	A = A_new
 	if num_new_links==1:
 		p_success_newlinks = 1
 	elif num_new_links==2:
 		p_success_newlinks = (8/9)*A**2 - (4/9)*A + 5/9
 	elif num_new_links==3:
 		p_success_newlinks = (32/27)*A**3 - (4/9)*A**2 + 7/27
-	### HEREEEEE
+	elif num_new_links==4:
+		p_success_newlinks = (32/27)*A**4 - (4/9)*A**2 + (4/27)*A + 1/9
+	elif num_new_links==5:
+		p_success_newlinks = (80/27)*A**4 - (80/27)*A**3 + (10/9)*A**2 - (5/27)*A + 2/27
+	elif num_new_links==6:
+		p_success_newlinks = (128/243)*A**6 + (320/243)*A**5 - (256/243)*A**4 + (16/243)*A**3 + (40/243)*A**2 - (14/243)*A + 1/27
+	elif num_new_links==7:
+		p_success_newlinks = (2048/2187)*A**7 - (128/2187)*A**6 + (320/729)*A**5 - (796/2187)*A**4 - (44/2187)*A**3 + (49/729)*A**2 - (37/2187)*A + 37/2187
+	elif num_new_links==8:
+		p_success_newlinks = (6656/6561)*A**8 - (1024/6561)*A**7 + (1664/6561)*A**6 - (64/6561)*A**5 - (1120/6561)*A**4 + (416/6561)*A**3 - (4/6561)*A**2 - (16/6561)*A + 53/6561
+	else:
+		raise ValueError('Jensen policy only works up to num_new_links=8')
 
 
 	## And the fidelity of the state after num_new_links-to-1 purifications ##
@@ -282,9 +297,18 @@ def policy_Jansen(rho_new, num_new_links):
 		A = ( (10/9)*A**2 - (2/9)*A + 1/9 )/p_success_newlinks
 	elif num_new_links==3:
 		A = ( (28/27)*A**3 - (1/9)*A + 2/27 )/p_success_newlinks
-	### AND HEREEEEE
-
-
+	elif num_new_links==4:
+		A = ( (8/9)*A**4 + (8/27)*A**3 - (2/9)*A**2 + 1/27 )/p_success_newlinks
+	elif num_new_links==5:
+		A = ( (32/27)*A**5 - (20/27)*A**4 + (10/9)*A**3 - (20/27)*A**2 + (5/27)*A )/p_success_newlinks
+	elif num_new_links==6:
+		A = ( (32/27)*A**6 - (112/243)*A**5 + (80/243)*A**4 + (8/243)*A**3 - (32/243)*A**2 + (10/243)*A + 1/243 )/p_success_newlinks
+	elif num_new_links==7:
+		A = ( (2368/2187)*A**7 - (592/2187)*A**6 + (196/729)*A**5 - (44/2187)*A**4 - (199/2187)*A**3 + (20/729)*A**2 - (2/2187)*A + 8/2187 )/p_success_newlinks
+	elif num_new_links==8:
+		A = ( (6784/6561)*A**8 - (51/6561)*A**7 - (32/6561)*A**6 + (832/6561)*A**5 - (560/6561)*A**4 - (8/6561)*A**3 + (52/6561)*A**2 - (8/6561)*A + 13/6561 )/p_success_newlinks
+	else:
+		raise ValueError('Optimal bilocal Clifford policy only works up to num_new_links=8')
 
 	## Since the state is Werner, the other diagonal elements are trivial to compute ##
 	B = (1-A)/3
