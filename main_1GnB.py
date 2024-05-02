@@ -28,7 +28,6 @@ from IPython.display import display
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
 def policy_label_to_function(policy_name):
-	print(policy_name)
 	if policy_name == 'Identity':
 		policy = policy_identity
 	elif policy_name == 'Replacement':
@@ -718,7 +717,7 @@ def AFplot_interactive(policy_names):
 
 
 
-	def AFplot_simple_inputs(n, p_gen, new_states, gen_tradeoff_parameter, rho00, rho11, rho22, Gammainv, p_cons, policy_names):
+	def AFplot_simple_inputs(n, p_gen, new_states, gen_tradeoff_parameter, rho00, rho11, rho22, Gamma, p_cons, policy_names):
 		if new_states == 'Werner':
 			rho_new = np.diag([rho00, (1-rho00)/3, (1-rho00)/3, (1-rho00)/3])
 		elif new_states == 'Werner tradeoff':
@@ -735,7 +734,6 @@ def AFplot_interactive(policy_names):
 		pur_after_swap = False
 		varying_param = 'q_purif'
 		q_purif = np.linspace(0,1,10)
-		Gamma = 1/Gammainv
 
 		AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_after_swap, Gamma, p_cons,
 						savefig=False, xlims=xlims, ylims=ylims)
@@ -766,14 +764,14 @@ def AFplot_interactive(policy_names):
 	rho11_widget.observe(update_rho_new_widgets, 'value')
 
 	ipywidgets.interact(AFplot_simple_inputs,
-		n = widgets.IntSlider(value=10, min=1, max=15, step=1, layout=slider_layout),
+		n = widgets.IntSlider(value=1, min=1, max=15, step=1, layout=slider_layout),
 		p_gen = widgets.FloatSlider(value=0.5, min=0, max=1, step=0.05, description=r'$p_\mathrm{gen}$', layout=slider_layout),
 		new_states = new_states_widget,
 		gen_tradeoff_parameter = gen_tradeoff_widget,
 		rho00 = rho00_widget,
 		rho11 = rho11_widget,
 		rho22 = rho22_widget,
-		Gammainv = widgets.FloatSlider(value=5, min=0, max=20, step=1, description=r'1/$\Gamma$', layout=slider_layout),# continuous_update=False),
+		Gamma = widgets.FloatSlider(value=0.2, min=0, max=1, step=0.05, description=r'$\Gamma$', layout=slider_layout),# continuous_update=False),
 		p_cons = widgets.FloatSlider(value=0.1, min=0, max=0.3, step=0.01, description=r'$p_\mathrm{cons}$', layout=slider_layout),
 		policy_names = widgets.SelectMultiple(options=policy_names, value=policy_names, rows=len(policy_names), description='Display'))
 	return
