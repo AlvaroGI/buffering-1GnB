@@ -259,7 +259,7 @@ def policy_opt_bilocal_Clifford(rho_new, num_new_links):
 	assert num_new_links >= 1
 	
 	## The Jansen policy only works for Werner states ##
-	assert isWerner(rho_new)
+	assert isWerner(rho_new), 'Optimal bilocal Clifford policy is only defined for Werner states!'
 
 	## Diagonal elements of the newly generated state (in Bell-state basis) ##
 	A_new = rho_new[0][0]
