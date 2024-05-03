@@ -80,8 +80,8 @@ def policy_DEJMPS(rho_new, num_new_links):
 	## Purification coefficients ##
 	c1 = (2/3) * (A+B-C-D) # Prob of success = c1*(F-1/4) + d1
 	d1 = (1/2) * (A+B+C+D)
-	a1 = (1/3) * (A-3*B+2*C+2*D) # Shifted output fidelity = (a1*(F-1/4) + b1) / (Prob of success)
-	b1 = (1/4) * (2*A-B-2*C-2*D)
+	a1 = (1/6) * (5*A-3*B+C+D) # Shifted output fidelity = (a1*(F-1/4) + b1) / (Prob of success)
+	b1 = (1/24) * (3*A+5*B-3*C-3*D)
 
 	return a1,b1,c1,d1
 
@@ -131,8 +131,8 @@ def policy_doubleDEJMPS(rho_new, num_new_links):
 	## Purification coefficients ##
 	c_l = (2/3) * (A+B-C-D) * p_success_newlinks
 	d_l = (1/2) * (A+B+C+D) * p_success_newlinks
-	a_l = (1/3) * (A-3*B+2*C+2*D) * p_success_newlinks
-	b_l = (1/4) * (2*A-B-2*C-2*D) * p_success_newlinks
+	a_l = (1/6) * (5*A-3*B+C+D) * p_success_newlinks
+	b_l = (1/24) * (3*A+5*B-3*C-3*D) * p_success_newlinks
 
 	return a_l,b_l,c_l,d_l
 
@@ -181,8 +181,8 @@ def policy_nestedDEJMPS(rho_new, num_new_links, max_links_used=1):
 	## Purification coefficients ##
 	c_l = (2/3) * (A+B-C-D) * p_success_newlinks
 	d_l = (1/2) * (A+B+C+D) * p_success_newlinks
-	a_l = (1/3) * (A-3*B+2*C+2*D) * p_success_newlinks
-	b_l = (1/4) * (2*A-B-2*C-2*D) * p_success_newlinks
+	a_l = (1/6) * (5*A-3*B+C+D) * p_success_newlinks
+	b_l = (1/24) * (3*A+5*B-3*C-3*D) * p_success_newlinks
 
 	return a_l,b_l,c_l,d_l
 
@@ -286,7 +286,7 @@ def policy_opt_bilocal_Clifford(rho_new, num_new_links):
 	elif num_new_links==8:
 		p_success_newlinks = (6656/6561)*A**8 - (1024/6561)*A**7 + (1664/6561)*A**6 - (64/6561)*A**5 - (1120/6561)*A**4 + (416/6561)*A**3 - (4/6561)*A**2 - (16/6561)*A + 53/6561
 	else:
-		raise ValueError('Jensen policy only works up to num_new_links=8')
+		raise ValueError('Optimal bilocal Clifford policy only works up to num_new_links=8')
 
 
 	## And the fidelity of the state after num_new_links-to-1 purifications ##
@@ -318,8 +318,8 @@ def policy_opt_bilocal_Clifford(rho_new, num_new_links):
 	## Purification coefficients ##
 	c_l = (2/3) * (A+B-C-D) * p_success_newlinks
 	d_l = (1/2) * (A+B+C+D) * p_success_newlinks
-	a_l = (1/3) * (A-3*B+2*C+2*D) * p_success_newlinks
-	b_l = (1/4) * (2*A-B-2*C-2*D) * p_success_newlinks
+	a_l = (1/6) * (5*A-3*B+C+D) * p_success_newlinks
+	b_l = (1/24) * (3*A+5*B-3*C-3*D) * p_success_newlinks
 
 	return a_l,b_l,c_l,d_l
 
@@ -609,7 +609,6 @@ def plot_run_1GnB(Fcons_avg, buffered_fidelity_trace, cons_requests_trace, purif
 	# Legend
 	plt.legend()
 
-
 def AFplot(policy_names, sim_data=None, theory_data=None, filename=None, xlims=None, ylims=None):
 	fig, ax = plt.subplots()
 
@@ -771,9 +770,62 @@ def AFplot_interactive(policy_names):
 		rho00 = rho00_widget,
 		rho11 = rho11_widget,
 		rho22 = rho22_widget,
-		Gamma = widgets.FloatSlider(value=0.2, min=0, max=1, step=0.05, description=r'$\Gamma$', layout=slider_layout),# continuous_update=False),
+		Gamma = widgets.FloatSlider(value=0.2, min=0, max=1, step=0.01, description=r'$\Gamma$', layout=slider_layout),# continuous_update=False),
 		p_cons = widgets.FloatSlider(value=0.1, min=0, max=0.3, step=0.01, description=r'$p_\mathrm{cons}$', layout=slider_layout),
 		policy_names = widgets.SelectMultiple(options=policy_names, value=policy_names, rows=len(policy_names), description='Display'))
+	return
+
+def policies_plot(policy_names, rho_new, num_new_links, figsize_cm=20, savefig=False):
+
+	F_vec = np.linspace(0.5,1,20)
+
+	## CALCULATIONS ##
+	p_success_vec = [[] for policy in policy_names]
+	F_out_vec = [[] for policy in policy_names]
+
+	for idx_policy, policy_name in enumerate(policy_names):
+		purif_policy = policy_label_to_function(policy_name)
+		a,b,c,d = purif_policy(rho_new, num_new_links)
+		print(a,b,c,d)
+		p_success_vec[idx_policy] = [c*(f-1/4)+d for f in F_vec]
+		F_out_vec[idx_policy] = [1/4 + (a*(f-1/4)+b)/(c*(f-1/4)+d) for f in F_vec]
+
+	## PLOT ##
+	fig, ax = plt.subplots()
+	fig.set_size_inches(figsize_cm/2.54, figsize_cm/2.54)
+	
+	# Colors and markers
+	cmap = plt.cm.get_cmap('inferno')
+	colors = [cmap(i/len(policy_names)) for i in range(len(policy_names))]
+	markers = ['^','v','o','s','d']
+	
+	# Plot data
+	plt.plot(F_vec,F_vec,color='k',linestyle=':',label='Reference (y=x)')
+	for idx_policy, policy in enumerate(policy_names):
+		plt.plot(F_vec, F_out_vec[idx_policy],
+				 color=colors[idx_policy], linestyle='-', label=policy+r' ($F_\mathrm{out}$)')
+	for idx_policy, policy in enumerate(policy_names):
+		plt.plot(F_vec, p_success_vec[idx_policy],
+				 color=colors[idx_policy], linestyle='--', label=policy+r' ($p$)')
+
+	plt.plot(F_vec,[3*f/(2*f+1) for f in F_vec], ':', color='tab:orange', label='Fout a mano')
+	plt.plot(F_vec,(2*F_vec+1)/3, ':', color='tab:blue', label='p a mano')
+
+	# Plot specs
+	plt.legend()
+	plt.xlabel(r'Input fidelity (Werner state)')
+	plt.ylabel(r'Output fidelity and success probability')
+
+	plt.xlim(0.5, 1)
+	plt.ylim(0, 1.01)
+	ax.set_xticks([0.5,0.6,0.7,0.8,0.9,1])
+	ax.set_yticks([0,0.25,0.5,0.75,1])
+
+	if savefig:
+		raise ValueError('Save not implemented!')
+	else:
+		plt.show()
+
 	return
 
 #------------------------------------------------------------------------------------------
