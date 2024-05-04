@@ -305,6 +305,7 @@ def policy_opt_bilocal_Clifford(rho_new, num_new_links):
 	elif num_new_links==7:
 		A = ( (2368/2187)*A**7 - (592/2187)*A**6 + (196/729)*A**5 - (44/2187)*A**4 - (199/2187)*A**3 + (20/729)*A**2 - (2/2187)*A + 8/2187 )/p_success_newlinks
 	elif num_new_links==8:
+		raise ValueError('The F_out reported in Jansen2022 for num_new_links=8 is incorrect')
 		A = ( (6784/6561)*A**8 - (51/6561)*A**7 - (32/6561)*A**6 + (832/6561)*A**5 - (560/6561)*A**4 - (8/6561)*A**3 + (52/6561)*A**2 - (8/6561)*A + 13/6561 )/p_success_newlinks
 	else:
 		raise ValueError('Optimal bilocal Clifford policy only works up to num_new_links=8')
@@ -786,7 +787,6 @@ def policies_plot(policy_names, rho_new, num_new_links, figsize_cm=20, savefig=F
 	for idx_policy, policy_name in enumerate(policy_names):
 		purif_policy = policy_label_to_function(policy_name)
 		a,b,c,d = purif_policy(rho_new, num_new_links)
-		print(a,b,c,d)
 		p_success_vec[idx_policy] = [c*(f-1/4)+d for f in F_vec]
 		F_out_vec[idx_policy] = [1/4 + (a*(f-1/4)+b)/(c*(f-1/4)+d) for f in F_vec]
 
@@ -807,9 +807,8 @@ def policies_plot(policy_names, rho_new, num_new_links, figsize_cm=20, savefig=F
 	for idx_policy, policy in enumerate(policy_names):
 		plt.plot(F_vec, p_success_vec[idx_policy],
 				 color=colors[idx_policy], linestyle='--', label=policy+r' ($p$)')
-
-	plt.plot(F_vec,[3*f/(2*f+1) for f in F_vec], ':', color='tab:orange', label='Fout a mano')
-	plt.plot(F_vec,(2*F_vec+1)/3, ':', color='tab:blue', label='p a mano')
+	#plt.plot(F_vec,[3*f/(2*f+1) for f in F_vec], ':', color='tab:orange', label='Fout DEJMPS a mano')
+	#plt.plot(F_vec,(2*F_vec+1)/3, ':', color='tab:blue', label='p DEJMPS a mano')
 
 	# Plot specs
 	plt.legend()
@@ -826,6 +825,37 @@ def policies_plot(policy_names, rho_new, num_new_links, figsize_cm=20, savefig=F
 	else:
 		plt.show()
 
+	return
+
+def policies_plot_interactive(policy_names):
+	## Widgets specs ##
+	slider_layout = ipywidgets.Layout(width='60%')
+
+	def policies_plot_inputs(num_new_links, new_states, gen_tradeoff_parameter, rho00, policy_names):
+		if new_states == 'Werner':
+			rho_new = np.diag([rho00, (1-rho00)/3, (1-rho00)/3, (1-rho00)/3])
+		policies_plot(policy_names, rho_new, num_new_links)
+		return
+
+	new_states_widget = widgets.RadioButtons(options=['Werner', 'Werner tradeoff'], value='Werner', description=r'$\rho_\mathrm{new}$')
+	rho00_widget = widgets.FloatSlider(value=0.9, min=0.5, max=1, step=0.05, description=r'$F_\mathrm{new}$', layout=slider_layout)
+	gen_tradeoff_widget = widgets.FloatSlider(value=0.5, min=0, max=1, step=0.1, description=r'$\lambda_\mathrm{gen}$', disabled=True, layout=slider_layout)
+	def update_rho_new_widgets(*args):
+		if new_states_widget.value in ['Werner tradeoff']:
+			gen_tradeoff_widget.disabled = False
+			rho00_widget.disabled = True
+		else:
+			gen_tradeoff_widget.disabled = True
+			rho00_widget.disabled = False
+	new_states_widget.observe(update_rho_new_widgets, 'value')
+	rho00_widget.observe(update_rho_new_widgets, 'value')
+
+	ipywidgets.interact(policies_plot_inputs,
+		num_new_links = widgets.IntSlider(value=1, min=1, max=15, step=1, layout=slider_layout),
+		new_states = new_states_widget,
+		gen_tradeoff_parameter = gen_tradeoff_widget,
+		rho00 = rho00_widget,
+		policy_names = widgets.SelectMultiple(options=policy_names, value=policy_names, rows=len(policy_names), description='Display'))
 	return
 
 #------------------------------------------------------------------------------------------
