@@ -40,6 +40,8 @@ def policy_label_to_function(policy_name):
 		policy = functools.partial(policy_nestedDEJMPS, max_links_used=int(policy_name[15:]))
 	elif policy_name == 'Optimal bi. Cliff.':
 		policy = policy_opt_bilocal_Clifford
+	elif policy_name == '313':
+		policy = policy_313
 	else:
 		raise ValueError('Unknown policy')
 	return policy
@@ -324,15 +326,15 @@ def policy_opt_bilocal_Clifford(rho_new, num_new_links):
 
 	return a_l,b_l,c_l,d_l
 
-def policy_determ3(rho_new, num_new_links):
+def policy_313(rho_new, num_new_links):
 	'''Purification policy:
-		num_new_links=1: DEJMPS purification protocol.
-		num_new_links=3: Apply the deterministic purification protocol based on
-		
-						from Jansen2022 on the new links (only applies to Werner states).
-						Then use the remaining link to do DEJMPS on the buffered
-						link. If num_new_links>8, it only uses 8 new links
-						and discards the rest.
+		num_new_links<3: Apply DEJMPS.
+		num_new_links>=3: Apply the deterministic purification protocol based on the
+							[[3,1,3]] convolutional code used in Patil2024 to 
+							3 new links. Then, twirl to make Werner
+							(because I'm unsure how the output states from 313 protocol
+							look like) and apply DEJMPS to the buffered link. The other
+							links are discarded.
 
 	Parameters:
 	- rho_new:	(np.array) Density matrix of newly generated entangled links,
@@ -344,9 +346,12 @@ def policy_determ3(rho_new, num_new_links):
 	Returns: ...'''
 
 	assert num_new_links >= 1
+
+	if num_new_links < 3:
+		return policy_DEJMPS(rho_new, 1)
 	
-	## The Jansen policy only works for Werner states ##
-	assert isWerner(rho_new), 'Optimal bilocal Clifford policy is only defined for Werner states!'
+	## The 313 policy only works for Werner states ##
+	assert isWerner(rho_new), '313 policy is only defined for Werner states!'
 
 	## Diagonal elements of the newly generated state (in Bell-state basis) ##
 	A_new = rho_new[0][0]
@@ -355,53 +360,20 @@ def policy_determ3(rho_new, num_new_links):
 	D_new = rho_new[1][1]
 
 	## Compute the probability of not failing the purification of new links ##
-	A = A_new
-	if num_new_links==1:
-		p_success_newlinks = 1
-	elif num_new_links==2:
-		p_success_newlinks = (8/9)*A**2 - (4/9)*A + 5/9
-	elif num_new_links==3:
-		p_success_newlinks = (32/27)*A**3 - (4/9)*A**2 + 7/27
-	elif num_new_links==4:
-		p_success_newlinks = (32/27)*A**4 - (4/9)*A**2 + (4/27)*A + 1/9
-	elif num_new_links==5:
-		p_success_newlinks = (80/27)*A**4 - (80/27)*A**3 + (10/9)*A**2 - (5/27)*A + 2/27
-	elif num_new_links==6:
-		p_success_newlinks = (128/243)*A**6 + (320/243)*A**5 - (256/243)*A**4 + (16/243)*A**3 + (40/243)*A**2 - (14/243)*A + 1/27
-	elif num_new_links==7:
-		p_success_newlinks = (2048/2187)*A**7 - (128/2187)*A**6 + (320/729)*A**5 - (796/2187)*A**4 - (44/2187)*A**3 + (49/729)*A**2 - (37/2187)*A + 37/2187
-	elif num_new_links==8:
-		p_success_newlinks = (6656/6561)*A**8 - (1024/6561)*A**7 + (1664/6561)*A**6 - (64/6561)*A**5 - (1120/6561)*A**4 + (416/6561)*A**3 - (4/6561)*A**2 - (16/6561)*A + 53/6561
-	else:
-		raise ValueError('Optimal bilocal Clifford policy only works up to num_new_links=8')
+	p_success_newlinks = 1
 
+	## Fidelity of the 313-purified links ##
+	z = 1 - 0.998 * A_new
+	A = 1 - (0.0013423 - 0.465895*z + 92.816480*z**2 - 600.2412*z**3 + 1141.6515*z**4)
+	# This function was obtained by fitting fourth order polynomial (with WebPlotDigitizer
+	# and Plotly) to the blue curve from Figure 1 from Patil2024, and then tweaked (rescaled
+	# infidelity 1-A_new to z) to create a fixed point
 
-	## And the fidelity of the state after num_new_links-to-1 purifications ##
-	if num_new_links==1:
-		A = A_new
-	elif num_new_links==2:
-		A = ( (10/9)*A**2 - (2/9)*A + 1/9 )/p_success_newlinks
-	elif num_new_links==3:
-		A = ( (28/27)*A**3 - (1/9)*A + 2/27 )/p_success_newlinks
-	elif num_new_links==4:
-		A = ( (8/9)*A**4 + (8/27)*A**3 - (2/9)*A**2 + 1/27 )/p_success_newlinks
-	elif num_new_links==5:
-		A = ( (32/27)*A**5 - (20/27)*A**4 + (10/9)*A**3 - (20/27)*A**2 + (5/27)*A )/p_success_newlinks
-	elif num_new_links==6:
-		A = ( (32/27)*A**6 - (112/243)*A**5 + (80/243)*A**4 + (8/243)*A**3 - (32/243)*A**2 + (10/243)*A + 1/243 )/p_success_newlinks
-	elif num_new_links==7:
-		A = ( (2368/2187)*A**7 - (592/2187)*A**6 + (196/729)*A**5 - (44/2187)*A**4 - (199/2187)*A**3 + (20/729)*A**2 - (2/2187)*A + 8/2187 )/p_success_newlinks
-	elif num_new_links==8:
-		raise ValueError('The F_out reported in Jansen2022 for num_new_links=8 is incorrect')
-		A = ( (6784/6561)*A**8 - (51/6561)*A**7 - (32/6561)*A**6 + (832/6561)*A**5 - (560/6561)*A**4 - (8/6561)*A**3 + (52/6561)*A**2 - (8/6561)*A + 13/6561 )/p_success_newlinks
-	else:
-		raise ValueError('Optimal bilocal Clifford policy only works up to num_new_links=8')
-
-	## Since the state is Werner, the other diagonal elements are trivial to compute ##
+	## We twirl the output state into Werner form ##
 	B = (1-A)/3
 	C = (1-A)/3
 	D = (1-A)/3
-
+	print(A)
 	## Use the resulting link to purify the link in memory ##
 	## Purification coefficients ##
 	c_l = (2/3) * (A+B-C-D) * p_success_newlinks
@@ -924,7 +896,7 @@ def policies_plot_interactive(policy_names):
 		return
 
 	new_states_widget = widgets.RadioButtons(options=['Werner', 'Werner tradeoff'], value='Werner', description=r'$\rho_\mathrm{new}$')
-	rho00_widget = widgets.FloatSlider(value=0.9, min=0.5, max=1, step=0.05, description=r'$F_\mathrm{new}$', layout=slider_layout)
+	rho00_widget = widgets.FloatSlider(value=0.9, min=0.5, max=1, step=0.01, description=r'$F_\mathrm{new}$', layout=slider_layout)
 	gen_tradeoff_widget = widgets.FloatSlider(value=0.5, min=0, max=1, step=0.1, description=r'$\lambda_\mathrm{gen}$', disabled=True, layout=slider_layout)
 	def update_rho_new_widgets(*args):
 		if new_states_widget.value in ['Werner tradeoff']:
