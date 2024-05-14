@@ -42,6 +42,10 @@ def policy_label_to_function(policy_name):
 		policy = policy_opt_bilocal_Clifford
 	elif policy_name == '313':
 		policy = policy_313
+	elif policy_name == '513 EC':
+		policy = functools.partial(policy_513, mode='EC')
+	elif policy_name == '513 ED':
+		policy = functools.partial(policy_513, mode='ED')
 	else:
 		raise ValueError('Unknown policy')
 	return policy
@@ -373,7 +377,7 @@ def policy_313(rho_new, num_new_links):
 	B = (1-A)/3
 	C = (1-A)/3
 	D = (1-A)/3
-	print(A)
+
 	## Use the resulting link to purify the link in memory ##
 	## Purification coefficients ##
 	c_l = (2/3) * (A+B-C-D) * p_success_newlinks
@@ -382,6 +386,68 @@ def policy_313(rho_new, num_new_links):
 	b_l = (1/24) * (3*A+5*B-3*C-3*D) * p_success_newlinks
 
 	return a_l,b_l,c_l,d_l
+
+def policy_513(rho_new, num_new_links, mode='EC'):
+	'''Purification policy:
+		num_new_links<5 or F_new<0.86: Apply double DEJMPS (since 513 EC/ED only works well
+										for fidelities larger than 0.86/0.75 approx)
+		else: Apply the deterministic purification protocol based on the
+							[[5,1,3]] code in error-correcting (EC) or error-detecting (ED)
+							mode, used in Stephens2013, to 5 new links.
+							Then, twirl to make Werner (because I'm unsure how the output
+							state looks like) and apply DEJMPS to the buffered link.
+							The other links are discarded.
+
+	Parameters:
+	- rho_new:	(np.array) Density matrix of newly generated entangled links,
+							written in the Bell-state basis: 00+11, 00-11, 01+10, 01-10.
+							The fidelity is the first entry of the matrix.
+	- num_new_links:	(int) Number of newly generated links. The protocol performs
+								(num_new_links)-to-1 purification.
+
+	Returns: ...'''
+
+	assert num_new_links >= 1
+
+	if num_new_links < 5 or (mode=='EC'and rho_new[0][0] < 0.86) or (mode=='ED'and rho_new[0][0] < 0.75):
+		return policy_nestedDEJMPS(rho_new, num_new_links, max_links_used=2)
+	
+	## The 513 policy only works for Werner states ##
+	assert isWerner(rho_new), '513 policy is only defined for Werner states!'
+
+	## Diagonal elements of the newly generated state (in Bell-state basis) ##
+	A_new = rho_new[0][0]
+	B_new = rho_new[3][3]
+	C_new = rho_new[2][2]
+	D_new = rho_new[1][1]
+
+	## Compute the probability of not failing the purification of new links ##
+	if mode == 'EC':
+		p_success_newlinks = 0.404 + 0.596 * np.exp( -(A_new-1)**2 / (2*0.199**2) )
+	elif mode == 'ED':
+		p_success_newlinks = -0.153 + 0.01488 * np.exp( 4.34976 * A_new )
+
+	## Fidelity of the 313-purified links ##
+	if mode == 'EC':
+		A = 0.669 + 0.331 * np.exp( -(A_new-1)**2 / (2*0.136**2) )
+	elif mode == 'ED':
+		A = 1 - 0.046 * np.exp( -(A_new-0.680)**2 / (2*0.083**2) )
+
+	## We twirl the output state into Werner form ##
+	B = (1-A)/3
+	C = (1-A)/3
+	D = (1-A)/3
+
+	## Use the resulting link to purify the link in memory ##
+	## Purification coefficients ##
+	c_l = (2/3) * (A+B-C-D) * p_success_newlinks
+	d_l = (1/2) * (A+B+C+D) * p_success_newlinks
+	a_l = (1/6) * (5*A-3*B+C+D) * p_success_newlinks
+	b_l = (1/24) * (3*A+5*B-3*C-3*D) * p_success_newlinks
+
+	return a_l,b_l,c_l,d_l
+
+
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
 #------------------------------------- SIMULATION -----------------------------------------
