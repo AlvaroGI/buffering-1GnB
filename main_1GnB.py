@@ -36,8 +36,10 @@ def policy_label_to_function(policy_name):
 		policy = policy_DEJMPS
 	elif policy_name == 'Double DEJMPS':
 		policy = policy_doubleDEJMPS
+	elif policy_name[0:16] == 'Concat. DEJMPS x':
+		policy = functools.partial(policy_concatDEJMPS, max_links_used=int(policy_name[16:]))
 	elif policy_name[0:15] == 'Nested DEJMPS x':
-		policy = functools.partial(policy_nestedDEJMPS, max_links_used=int(policy_name[15:]))
+		policy = functools.partial(policy_concatDEJMPS, max_links_used=int(policy_name[15:]))
 	elif policy_name == 'Optimal bi. Cliff.':
 		policy = policy_opt_bilocal_Clifford
 	elif policy_name == '313':
@@ -142,7 +144,7 @@ def policy_doubleDEJMPS(rho_new, num_new_links):
 
 	return a_l,b_l,c_l,d_l
 
-def policy_nestedDEJMPS(rho_new, num_new_links, max_links_used=1):
+def policy_concatDEJMPS(rho_new, num_new_links, max_links_used=1):
 	'''Purification policy:
 		x-to-1: applies DEJMPS purification protocol at most max_links_used times.
 
@@ -410,7 +412,7 @@ def policy_513(rho_new, num_new_links, mode='EC'):
 	assert num_new_links >= 1
 
 	if num_new_links < 5 or (mode=='EC'and rho_new[0][0] < 0.86) or (mode=='ED'and rho_new[0][0] < 0.75):
-		return policy_nestedDEJMPS(rho_new, num_new_links, max_links_used=2)
+		return policy_concatDEJMPS(rho_new, num_new_links, max_links_used=2)
 	
 	## The 513 policy only works for Werner states ##
 	assert isWerner(rho_new), '513 policy is only defined for Werner states!'
