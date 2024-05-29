@@ -739,7 +739,7 @@ def plot_run_1GnB(Fcons_avg, buffered_fidelity_trace, cons_requests_trace, purif
 def AFplot(policy_names, sim_data=None, theory_data=None, filename=None, xlims=None, ylims=None):
 	fig, ax = plt.subplots()
 
-	if filename:
+	if False: # filename:
 		figsize_cm = 9
 	else:
 		figsize_cm = 20
@@ -764,13 +764,15 @@ def AFplot(policy_names, sim_data=None, theory_data=None, filename=None, xlims=N
 	if theory_data:
 		for idx_policy, policy in enumerate(policy_names):
 			plt.plot(theory_data['A'][idx_policy], theory_data['Fcons_avg'][idx_policy],
-						 color=colors[idx_policy], linestyle='-', label=policy+' (theory)')
+						 linewidth=3,
+						 color=colors[idx_policy], linestyle='-', label=policy)#+' (theory)')
 		
 	
 	## Plot specs ##
-	plt.legend()
+	plt.legend(fontsize=14)
 	plt.xlabel(r'Availability')
 	plt.ylabel(r'Avg. consumed fidelity')
+	ax.tick_params(labelsize=14) # Font size
 
 	dA = 0.05
 	if xlims==None:
