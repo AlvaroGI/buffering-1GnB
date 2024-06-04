@@ -34,6 +34,10 @@ def policy_label_to_function(policy_name):
 		policy = policy_replacement
 	elif policy_name == 'DEJMPS':
 		policy = policy_DEJMPS
+	elif policy_name[0:14] == 'Erasure DEJMPS':
+		policy = functools.partial(policy_erasureDEJMPS, alpha=float(policy_name[15:]))
+	elif policy_name[0:13] == 'Depol. DEJMPS':
+		policy = functools.partial(policy_depolDEJMPS, beta=float(policy_name[14:]))
 	elif policy_name == 'Double DEJMPS':
 		policy = policy_doubleDEJMPS
 	elif policy_name[0:16] == 'Concat. DEJMPS x':
@@ -51,6 +55,29 @@ def policy_label_to_function(policy_name):
 	else:
 		raise ValueError('Unknown policy')
 	return policy
+
+
+def policy_erasureDEJMPS(rho_new, num_new_links, alpha=0):
+	'''Purification policy: DEJMPS, and applies an erasure channel afterwards.
+
+	Parameters:
+	- alpha: probability of erasure.'''
+
+	a1, b1, c1, d1 = policy_DEJMPS(rho_new, num_new_links)
+
+	return (1-alpha)*a1, (1-alpha)*b1, (1-alpha)*c1, (1-alpha)*d1
+
+
+def policy_depolDEJMPS(rho_new, num_new_links, beta=0):
+	'''Purification policy: DEJMPS, and applies a double depolarizing channel afterwards.
+
+	Parameters:
+	- beta: probability of each qubit being depolarized.'''
+
+	a1, b1, c1, d1 = policy_DEJMPS(rho_new, num_new_links)
+	gamma = beta*(beta-2)
+	return (1+gamma)*a1-gamma*c1/4, (1+gamma)*b1-gamma*d1/4, c1, d1
+
 
 def policy_DEJMPS(rho_new, num_new_links):
 	'''Purification policy:
@@ -736,7 +763,7 @@ def plot_run_1GnB(Fcons_avg, buffered_fidelity_trace, cons_requests_trace, purif
 	# Legend
 	plt.legend()
 
-def AFplot(policy_names, sim_data=None, theory_data=None, filename=None, xlims=None, ylims=None):
+def AFplot(policy_names, sim_data=None, theory_data=None, filename=None, xlims=None, ylims=None, colors=None, linestyles=None):
 	fig, ax = plt.subplots()
 
 	if False: # filename:
@@ -747,8 +774,11 @@ def AFplot(policy_names, sim_data=None, theory_data=None, filename=None, xlims=N
 	
 	## Colors and markers ##
 	#colors = ['k', 'tab:blue', 'tab:orange', 'tab:purple']
-	cmap = plt.cm.get_cmap('inferno')
-	colors = [cmap(i/len(policy_names)) for i in range(len(policy_names))]
+	if colors==None:
+		cmap = plt.cm.get_cmap('inferno')
+		colors = [cmap(i/len(policy_names)) for i in range(len(policy_names))]
+	if linestyles==None:
+		linestyles = ['-' for i in range(len(policy_names))]
 	markers = ['^','v','o','s','d']
 
 	## Plot simulation data ##
@@ -765,7 +795,7 @@ def AFplot(policy_names, sim_data=None, theory_data=None, filename=None, xlims=N
 		for idx_policy, policy in enumerate(policy_names):
 			plt.plot(theory_data['A'][idx_policy], theory_data['Fcons_avg'][idx_policy],
 						 linewidth=3,
-						 color=colors[idx_policy], linestyle='-', label=policy)#+' (theory)')
+						 color=colors[idx_policy], linestyle=linestyles[idx_policy], label=policy)
 		
 	
 	## Plot specs ##
@@ -832,6 +862,49 @@ def AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_a
 	else:
 		filename = None
 	AFplot(policy_names, sim_data=None, theory_data=theory_data, filename=filename, xlims=xlims, ylims=xlims)
+
+	return
+
+def AFplot_noisyDEJMPS(varying_param, n, p_gen, rho_new, q_purif, pur_after_swap, Gamma, p_cons, alpha1, alpha2, beta1, beta2, savefig=False, xlims=None, ylims=None):
+	if varying_param=='q_purif':
+		varying_array = q_purif
+	else:
+		raise ValueError('Unknown varying_param')
+
+	policy_names = ['Erasure DEJMPS %.2f'%alpha1, 'Erasure DEJMPS %.2f'%alpha2,
+					'Depol. DEJMPS %.2f'%beta1, 'Depol. DEJMPS %.2f'%beta2]
+	colors = ['tab:blue', 'tab:blue', 'tab:orange', 'tab:orange']
+	linestyles = ['-', '--', '-', '--']
+
+	## COMPUTE THEORY ##
+	Fcons_theory_vec = [[] for policy in policy_names]
+	A_theory_vec = [[] for policy in policy_names]
+
+	for idx_policy, policy_name in enumerate(policy_names):
+		purif_policy = policy_label_to_function(policy_name)
+		for x in varying_array:
+			if varying_param=='q_purif':
+				q_purif = x
+			else:
+				raise ValueError('Unknown varying_param')
+			A, Fcons = analytical_availability_Fcons(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons)
+			Fcons_theory_vec[idx_policy] += [Fcons]
+			A_theory_vec[idx_policy] += [A]
+	theory_data = {'Fcons_avg': Fcons_theory_vec, 'A': A_theory_vec}
+
+	## PLOT ##
+	if savefig:
+		raise ValueError('savefig not implemented')
+		filename = 'figs/AF_theory_%s'%varying_param
+		if varying_param=='q_purif':
+			filename += '_n%d_pgen%.3f_pcons%.3f_rhodiag-%.3f-%.3f-%.3f-%.3f_swapandpur%s_G%.5f.pdf'%(n, p_gen, p_cons,
+							rho_new[0][0], rho_new[1][1], rho_new[2][2], rho_new[3][3], pur_after_swap, Gamma)
+		else:
+			raise ValueError('Unknown varying_param')
+	else:
+		filename = None
+	AFplot(policy_names, sim_data=None, theory_data=theory_data, filename=filename,
+			xlims=xlims, ylims=xlims, colors=colors, linestyles=linestyles)
 
 	return
 
@@ -902,6 +975,78 @@ def AFplot_interactive(policy_names):
 		Gamma = widgets.FloatSlider(value=0.2, min=0, max=1, step=0.01, description=r'$\Gamma$', layout=slider_layout),# continuous_update=False),
 		p_cons = widgets.FloatSlider(value=0.1, min=0, max=0.3, step=0.01, description=r'$p_\mathrm{cons}$', layout=slider_layout),
 		policy_names = widgets.SelectMultiple(options=policy_names, value=policy_names, rows=len(policy_names), description='Display'))
+	return
+
+def AFplot_noisyDEJMPS_interactive():
+	## Widgets specs ##
+	slider_layout = ipywidgets.Layout(width='60%')
+
+	## Plot specs ##
+	xlims = [0.5,1]
+	ylims = [0.5,1]
+
+
+
+	def AFplot_simple_inputs(n, p_gen, new_states, gen_tradeoff_parameter, rho00, rho11, rho22, Gamma, p_cons, alpha1, alpha2, beta1, beta2):
+		if new_states == 'Werner':
+			rho_new = np.diag([rho00, (1-rho00)/3, (1-rho00)/3, (1-rho00)/3])
+		elif new_states == 'Werner tradeoff':
+			rho00 = 1-gen_tradeoff_parameter*p_gen
+			rho_new = np.diag([rho00, (1-rho00)/3, (1-rho00)/3, (1-rho00)/3])
+		elif new_states == 'Bell-diagonal':
+			if rho00+rho11+rho22 > 1:
+				print('Invalid density matrix')
+				return
+			rho_new = np.diag([rho00, rho11, rho22, 1-rho00-rho11-rho22])
+		elif new_states == 'R-state':
+			rho_new = np.diag([rho00, 0, (1-rho00)/2, (1-rho00)/2])
+
+		pur_after_swap = False
+		varying_param = 'q_purif'
+		q_purif = np.linspace(0,1,10)
+
+		AFplot_noisyDEJMPS(varying_param, n, p_gen, rho_new, q_purif, pur_after_swap, Gamma, p_cons, alpha1, alpha2, beta1, beta2,
+						savefig=False, xlims=xlims, ylims=ylims)
+		return
+
+	new_states_widget = widgets.RadioButtons(options=['Werner', 'Werner tradeoff', 'Bell-diagonal', 'R-state'], value='Werner', description=r'$\rho_\mathrm{new}$')
+	rho00_widget = widgets.FloatSlider(value=0.9, min=0.5, max=1, step=0.05, description=r'$F_\mathrm{new}$', layout=slider_layout)
+	rho11_widget = widgets.FloatSlider(value=0.033, min=0, max=0.1, step=0.001, description=r'$\rho_\mathrm{new,11}$', disabled=True, layout=slider_layout)
+	rho22_widget = widgets.FloatSlider(value=0.033, min=0, max=0.1, step=0.001, description=r'$\rho_\mathrm{new,22}$', disabled=True, layout=slider_layout)
+	gen_tradeoff_widget = widgets.FloatSlider(value=0.5, min=0, max=1, step=0.1, description=r'$\lambda_\mathrm{gen}$', disabled=True, layout=slider_layout)
+	def update_rho_new_widgets(*args):
+		if new_states_widget.value in ['Werner', 'Werner tradeoff', 'R-state']:
+			rho11_widget.disabled = True
+			rho22_widget.disabled = True
+		else:
+			rho11_widget.disabled = False
+			rho22_widget.disabled = False
+		if new_states_widget.value in ['Werner tradeoff']:
+			gen_tradeoff_widget.disabled = False
+			rho00_widget.disabled = True
+		else:
+			gen_tradeoff_widget.disabled = True
+			rho00_widget.disabled = False
+		rho11_widget.max = 1-rho00_widget.value
+		rho22_widget.max = 1-rho00_widget.value-rho11_widget.value
+	new_states_widget.observe(update_rho_new_widgets, 'value')
+	rho00_widget.observe(update_rho_new_widgets, 'value')
+	rho11_widget.observe(update_rho_new_widgets, 'value')
+
+	ipywidgets.interact(AFplot_simple_inputs,
+		n = widgets.IntSlider(value=5, min=1, max=15, step=1, layout=slider_layout),
+		p_gen = widgets.FloatSlider(value=0.5, min=0, max=1, step=0.05, description=r'$p_\mathrm{gen}$', layout=slider_layout),
+		new_states = new_states_widget,
+		gen_tradeoff_parameter = gen_tradeoff_widget,
+		rho00 = rho00_widget,
+		rho11 = rho11_widget,
+		rho22 = rho22_widget,
+		Gamma = widgets.FloatSlider(value=0.1, min=0, max=1, step=0.01, description=r'$\Gamma$', layout=slider_layout),# continuous_update=False),
+		p_cons = widgets.FloatSlider(value=0.1, min=0, max=0.3, step=0.01, description=r'$p_\mathrm{cons}$', layout=slider_layout),
+		alpha1 = widgets.FloatSlider(value=0.1, min=0, max=1, step=0.01, description=r'$\alpha_1$', layout=slider_layout),
+		alpha2 = widgets.FloatSlider(value=0.1, min=0, max=1, step=0.01, description=r'$\alpha_2$', layout=slider_layout),
+		beta1 = widgets.FloatSlider(value=0.1, min=0, max=1, step=0.01, description=r'$\beta_1$', layout=slider_layout),
+		beta2 = widgets.FloatSlider(value=0.1, min=0, max=1, step=0.01, description=r'$\beta_2$', layout=slider_layout))
 	return
 
 def policies_plot(policy_names, rho_new, num_new_links, figsize_cm=20, savefig=False):
