@@ -76,7 +76,7 @@ def policy_depolDEJMPS(rho_new, num_new_links, beta=0):
 
 	a1, b1, c1, d1 = policy_DEJMPS(rho_new, num_new_links)
 	gamma = beta*(beta-2)
-	return (1+gamma)*a1-gamma*c1/4, (1+gamma)*b1-gamma*d1/4, c1, d1
+	return (1+gamma)*a1, (1+gamma)*b1, c1, d1
 
 
 def policy_DEJMPS(rho_new, num_new_links):
