@@ -52,10 +52,13 @@ def policy_label_to_function(policy_name):
 		policy = functools.partial(policy_513, mode='EC')
 	elif policy_name == '513 ED':
 		policy = functools.partial(policy_513, mode='ED')
+	elif policy_name == 'DEJMPS + Repl.':
+		policy = policy_DEJMPSreplacement
+	elif policy_name == 'DEJMPS + Repl. (flagged)':
+		policy = policy_DEJMPSreplacement_flags
 	else:
-		raise ValueError('Unknown policy')
+		raise ValueError('Unknown policy %s'%policy_name)
 	return policy
-
 
 def policy_erasureDEJMPS(rho_new, num_new_links, alpha=0):
 	'''Purification policy: DEJMPS, and applies an erasure channel afterwards.
@@ -67,7 +70,6 @@ def policy_erasureDEJMPS(rho_new, num_new_links, alpha=0):
 
 	return (1-alpha)*a1, (1-alpha)*b1, (1-alpha)*c1, (1-alpha)*d1
 
-
 def policy_depolDEJMPS(rho_new, num_new_links, beta=0):
 	'''Purification policy: DEJMPS, and applies a double depolarizing channel afterwards.
 
@@ -77,7 +79,6 @@ def policy_depolDEJMPS(rho_new, num_new_links, beta=0):
 	a1, b1, c1, d1 = policy_DEJMPS(rho_new, num_new_links)
 	gamma = beta*(beta-2)
 	return (1+gamma)*a1, (1+gamma)*b1, c1, d1
-
 
 def policy_DEJMPS(rho_new, num_new_links):
 	'''Purification policy:
@@ -476,6 +477,49 @@ def policy_513(rho_new, num_new_links, mode='EC'):
 
 	return a_l,b_l,c_l,d_l
 
+def policy_DEJMPSreplacement(rho_new, num_new_links):
+
+    assert num_new_links >= 1
+    assert isWerner(rho_new) # This example only works for Werner states
+    F_new = rho_new[0][0]
+    
+    ## Replacement ##
+    if num_new_links == 1:
+        return policy_replacement(rho_new, num_new_links)
+
+    ## DEJMPS + Replacement ##
+    else:
+        aD, bD, cD, dD = policy_DEJMPS(rho_new, num_new_links)
+        
+        ck = 0 # Prob of success = ck*(F-1/4) + dk
+        dk = cD*(F_new-0.25) + dD    
+        
+        ak = 0 # Shifted output fidelity = (ak*(F-1/4) + bk) / (Prob of success)
+        bk = aD*(F_new-0.25) + bD
+
+        return ak, bk, ck, dk
+
+def policy_DEJMPSreplacement_flags(rho_new, num_new_links):
+
+    assert num_new_links >= 1
+    assert isWerner(rho_new) # This example only works for Werner states
+    F_new = rho_new[0][0]
+    
+    ## Replacement ##
+    if num_new_links == 1:
+        return policy_replacement(rho_new, num_new_links)
+
+    ## DEJMPS + Replacement ##
+    else:
+        aD, bD, cD, dD = policy_DEJMPS(rho_new, num_new_links)
+        
+        ck = 0 # Prob of success = ck*(F-1/4) + dk
+        dk = 1
+        
+        ak = 1 - cD*(F_new-0.25) - dD # Shifted output fidelity = (ak*(F-1/4) + bk) / (Prob of success)
+        bk = aD*(F_new-0.25) + bD
+
+        return ak, bk, ck, dk
 
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
