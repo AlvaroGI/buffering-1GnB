@@ -42,8 +42,8 @@ def policy_label_to_function(policy_name):
 		policy = policy_doubleDEJMPS
 	elif policy_name[0:16] == 'Concat. DEJMPS x':
 		policy = functools.partial(policy_concatDEJMPS, max_links_used=int(policy_name[16:]))
-	elif policy_name[0:15] == 'Nested DEJMPS x':
-		policy = functools.partial(policy_concatDEJMPS, max_links_used=int(policy_name[15:]))
+	elif policy_name[0:15] == 'Nested DEJMPS':
+		policy = policy_nestedDEJMPS
 	elif policy_name == 'Optimal bi. Cliff.':
 		policy = policy_opt_bilocal_Clifford
 	elif policy_name == '313':
@@ -154,14 +154,18 @@ def policy_doubleDEJMPS(rho_new, num_new_links):
 	## Do one application of DEJMPS with the new links ##
 	p_success_newlinks = 1 # Probability of not failing any of these DEJMPS
 	for ii in range(min(num_new_links-1,1)):
+		_A = A
+		_B = B
+		_C = C
+		_D = D
 		# Probability of success of step ii
-		p_success_round = (A+B)*(A_new+B_new) + (C+D)*(C_new+D_new)
+		p_success_round = (_A+_B)*(A_new+B_new) + (_C+_D)*(C_new+D_new)
 		p_success_newlinks = p_success_newlinks*p_success_round
 		# Output state of step ii
-		A = (A*A_new+B*B_new)/p_success_round
-		B = (C*D_new+D*C_new)/p_success_round
-		C = (C*C_new+D*D_new)/p_success_round
-		D = (A*B_new+B*A_new)/p_success_round
+		A = (_A*A_new+_B*B_new)/p_success_round
+		B = (_C*D_new+_D*C_new)/p_success_round
+		C = (_C*C_new+_D*D_new)/p_success_round
+		D = (_A*B_new+_B*A_new)/p_success_round
 
 	## Use the resulting link to purify the link in memory ##
 	## Purification coefficients ##
@@ -204,14 +208,18 @@ def policy_concatDEJMPS(rho_new, num_new_links, max_links_used=1):
 	## Do at most min(num_new_links-1, max_links_used-1) applications of DEJMPS with the new links ##
 	p_success_newlinks = 1 # Probability of not failing any of these DEJMPS
 	for ii in range(min(num_new_links-1, max_links_used-1)):
+		_A = A
+		_B = B
+		_C = C
+		_D = D
 		# Probability of success of step ii
-		p_success_round = (A+B)*(A_new+B_new) + (C+D)*(C_new+D_new)
+		p_success_round = (_A+_B)*(A_new+B_new) + (_C+_D)*(C_new+D_new)
 		p_success_newlinks = p_success_newlinks*p_success_round
 		# Output state of step ii
-		A = (A*A_new+B*B_new)/p_success_round
-		B = (C*D_new+D*C_new)/p_success_round
-		C = (C*C_new+D*D_new)/p_success_round
-		D = (A*B_new+B*A_new)/p_success_round
+		A = (_A*A_new+_B*B_new)/p_success_round
+		B = (_C*D_new+_D*C_new)/p_success_round
+		C = (_C*C_new+_D*D_new)/p_success_round
+		D = (_A*B_new+_B*A_new)/p_success_round
 
 	## Use the resulting link to purify the link in memory ##
 	## Purification coefficients ##
@@ -221,6 +229,54 @@ def policy_concatDEJMPS(rho_new, num_new_links, max_links_used=1):
 	b_l = (1/24) * (3*A+5*B-3*C-3*D) * p_success_newlinks
 
 	return a_l,b_l,c_l,d_l
+
+def policy_nestedDEJMPS(rho_new, num_new_links):
+	'''Purification policy:
+		x-to-1: applies nested DEJMPS purification protocol.
+				Requires num_new_links = 2**m.
+
+	Parameters:
+	- rho_new:	(np.array) Density matrix of newly generated entangled links,
+							written in the Bell-state basis: 00+11, 00-11, 01+10, 01-10.
+							The fidelity is the first entry of the matrix.
+	- num_new_links:	(int) Number of newly generated links. The protocol performs
+								(num_new_links)-to-1 purification.
+
+	Returns:
+	- p_purif_succ:	(float) Probability of success.
+	- F_out:	(float) Output fidelity.'''
+
+	m = int(np.floor(np.log2(num_new_links)))
+
+	A = rho_new[0][0]
+	B = rho_new[3][3]
+	C = rho_new[2][2]
+	D = rho_new[1][1]
+
+	## Do m nested applications of DEJMPS with the new links ##
+	p_success_newlinks = 1 # Probability of not failing any of these DEJMPS
+	for ii in range(m):
+		_A = A
+		_B = B
+		_C = C
+		_D = D
+		# Probability of success of step ii
+		p_success_round = (_A+_B)*(_A+_B) + (_C+_D)*(_C+_D)
+		p_success_newlinks = p_success_newlinks*p_success_round
+		# Output state of step ii
+		A = (_A*_A+_B*_B)/p_success_round
+		B = (_C*_D+_D*_C)/p_success_round
+		C = (_C*_C+_D*_D)/p_success_round
+		D = (_A*_B+_B*_A)/p_success_round
+
+	## Use the resulting link to purify the link in memory ##
+	## Purification coefficients of DEJMPS using state [A,B,C,D] ##
+	c_l = (2/3) * (A+B-C-D) * p_success_newlinks
+	d_l = (1/2) * (A+B+C+D) * p_success_newlinks
+	a_l = (1/6) * (5*A-3*B+C+D) * p_success_newlinks
+	b_l = (1/24) * (3*A+5*B-3*C-3*D) * p_success_newlinks
+
+	return a_l, b_l, c_l, d_l
 
 def policy_identity(rho_new, num_new_links):
 	'''Purification policy:
