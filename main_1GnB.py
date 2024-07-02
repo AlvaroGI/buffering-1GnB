@@ -28,37 +28,67 @@ from IPython.display import display
 #------------------------------------------------------------------------------------------
 #------------------------------------------------------------------------------------------
 def policy_label_to_function(policy_name):
-	if policy_name == 'Identity':
-		policy = policy_identity
-	elif policy_name == 'Replacement':
-		policy = policy_replacement
-	elif policy_name == 'DEJMPS':
-		policy = policy_DEJMPS
-	elif policy_name[0:14] == 'Erasure DEJMPS':
-		policy = functools.partial(policy_erasureDEJMPS, alpha=float(policy_name[15:]))
-	elif policy_name[0:13] == 'Depol. DEJMPS':
-		policy = functools.partial(policy_depolDEJMPS, beta=float(policy_name[14:]))
-	elif policy_name == 'Double DEJMPS':
-		policy = policy_doubleDEJMPS
-	elif policy_name[0:16] == 'Concat. DEJMPS x':
-		policy = functools.partial(policy_concatDEJMPS, max_links_used=int(policy_name[16:]))
-	elif policy_name[0:15] == 'Nested DEJMPS':
-		policy = policy_nestedDEJMPS
-	elif policy_name == 'Optimal bi. Cliff.':
-		policy = policy_opt_bilocal_Clifford
-	elif policy_name == '313':
-		policy = policy_313
-	elif policy_name == '513 EC':
-		policy = functools.partial(policy_513, mode='EC')
-	elif policy_name == '513 ED':
-		policy = functools.partial(policy_513, mode='ED')
-	elif policy_name == 'DEJMPS + Repl.':
-		policy = policy_DEJMPSreplacement
-	elif policy_name == 'DEJMPS + Repl. (flagged)':
-		policy = policy_DEJMPSreplacement_flags
+	# Check if noise has to be added at the end of the purification
+	# The probability of error must be given as a float with two decimal places!
+	if policy_name[:7] == 'Erasure':
+		policy = functools.partial(policy_erasure, policy_name=policy_name[13:], alpha=float(policy_name[8:12]))
+	elif policy_name[:6] == 'Depol.':
+		policy = functools.partial(policy_depol, policy_name=policy_name[12:], beta=float(policy_name[7:11]))
+	# If there is no noise, check policy
 	else:
-		raise ValueError('Unknown policy %s'%policy_name)
+		if policy_name == 'Identity':
+			policy = policy_identity
+		elif policy_name == 'Replacement':
+			policy = policy_replacement
+		elif policy_name == 'DEJMPS':
+			policy = policy_DEJMPS
+		elif policy_name == 'Double DEJMPS':
+			policy = policy_doubleDEJMPS
+		elif policy_name[0:16] == 'Concat. DEJMPS x':
+			policy = functools.partial(policy_concatDEJMPS, max_links_used=int(policy_name[16:]))
+		elif policy_name[0:15] == 'Nested DEJMPS':
+			policy = policy_nestedDEJMPS
+		elif policy_name == 'Optimal bi. Cliff.':
+			policy = policy_opt_bilocal_Clifford
+		elif policy_name == '313':
+			policy = policy_313
+		elif policy_name == '513 EC':
+			policy = functools.partial(policy_513, mode='EC')
+		elif policy_name == '513 ED':
+			policy = functools.partial(policy_513, mode='ED')
+		elif policy_name == 'DEJMPS + Repl.':
+			policy = policy_DEJMPSreplacement
+		elif policy_name == 'DEJMPS + Repl. (flagged)':
+			policy = policy_DEJMPSreplacement_flags
+		else:
+			raise ValueError('Unknown policy %s'%policy_name)
 	return policy
+
+def policy_erasure(rho_new, num_new_links, policy_name=None, alpha=0):
+	'''Purification policy: policy_name, and applies an erasure channel afterwards.
+
+	Parameters:
+	- alpha: probability of erasure.'''
+	
+	policy = policy_label_to_function(policy_name)
+
+	a1, b1, c1, d1 = policy(rho_new, num_new_links)
+
+	return (1-alpha)*a1, (1-alpha)*b1, (1-alpha)*c1, (1-alpha)*d1
+
+def policy_depol(rho_new, num_new_links, policy_name=None, beta=0):
+	'''Purification policy: policy_name, and applies a double depolarizing channel afterwards.
+
+	Parameters:
+	- beta: probability of each qubit being depolarized.'''
+
+	policy = policy_label_to_function(policy_name)
+
+	a1, b1, c1, d1 = policy(rho_new, num_new_links)
+
+	gamma = beta*(beta-2)
+	return (1+gamma)*a1, (1+gamma)*b1, c1, d1
+
 
 def policy_erasureDEJMPS(rho_new, num_new_links, alpha=0):
 	'''Purification policy: DEJMPS, and applies an erasure channel afterwards.
@@ -965,20 +995,20 @@ def AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_a
 
 	return
 
-def AFplot_noisyDEJMPS(varying_param, n, p_gen, rho_new, q_purif, pur_after_swap, Gamma, p_cons, alpha1, alpha2, beta1, beta2, savefig=False, xlims=None, ylims=None):
+def AFplot_noisy(varying_param, n, p_gen, rho_new, q_purif, pur_after_swap, Gamma, p_cons, policy, alpha1, alpha2, beta1, beta2, savefig=False, xlims=None, ylims=None):
 	if varying_param=='q_purif':
 		varying_array = q_purif
 	else:
 		raise ValueError('Unknown varying_param')
 
-	policy_names = ['Erasure DEJMPS %.2f'%alpha1, 'Erasure DEJMPS %.2f'%alpha2,
-					'Depol. DEJMPS %.2f'%beta1, 'Depol. DEJMPS %.2f'%beta2]
+	policy_names = ['Erasure %.2f '%alpha1+policy, 'Erasure %.2f '%alpha2+policy,
+					'Depol. %.2f '%beta1+policy, 'Depol. %.2f '%beta2+policy]
 	colors = ['tab:blue', 'tab:blue', 'tab:orange', 'tab:orange']
 	linestyles = ['-', '--', '-', '--']
 
 	## COMPUTE THEORY ##
-	Fcons_theory_vec = [[] for policy in policy_names]
-	A_theory_vec = [[] for policy in policy_names]
+	Fcons_theory_vec = [[] for policy_name in policy_names]
+	A_theory_vec = [[] for policy_name in policy_names]
 
 	for idx_policy, policy_name in enumerate(policy_names):
 		purif_policy = policy_label_to_function(policy_name)
@@ -1077,7 +1107,7 @@ def AFplot_interactive(policy_names):
 		policy_names = widgets.SelectMultiple(options=policy_names, value=policy_names, rows=len(policy_names), description='Display'))
 	return
 
-def AFplot_noisyDEJMPS_interactive():
+def AFplot_noisy_interactive():
 	## Widgets specs ##
 	slider_layout = ipywidgets.Layout(width='60%')
 
@@ -1087,7 +1117,7 @@ def AFplot_noisyDEJMPS_interactive():
 
 
 
-	def AFplot_simple_inputs(n, p_gen, new_states, gen_tradeoff_parameter, rho00, rho11, rho22, Gamma, p_cons, alpha1, alpha2, beta1, beta2):
+	def AFplot_simple_inputs(n, p_gen, new_states, gen_tradeoff_parameter, rho00, rho11, rho22, Gamma, p_cons, policy, alpha1, alpha2, beta1, beta2):
 		if new_states == 'Werner':
 			rho_new = np.diag([rho00, (1-rho00)/3, (1-rho00)/3, (1-rho00)/3])
 		elif new_states == 'Werner tradeoff':
@@ -1105,7 +1135,7 @@ def AFplot_noisyDEJMPS_interactive():
 		varying_param = 'q_purif'
 		q_purif = np.linspace(0,1,10)
 
-		AFplot_noisyDEJMPS(varying_param, n, p_gen, rho_new, q_purif, pur_after_swap, Gamma, p_cons, alpha1, alpha2, beta1, beta2,
+		AFplot_noisy(varying_param, n, p_gen, rho_new, q_purif, pur_after_swap, Gamma, p_cons, policy, alpha1, alpha2, beta1, beta2,
 						savefig=False, xlims=xlims, ylims=ylims)
 		return
 
@@ -1143,6 +1173,7 @@ def AFplot_noisyDEJMPS_interactive():
 		rho22 = rho22_widget,
 		Gamma = widgets.FloatSlider(value=0.1, min=0, max=1, step=0.01, description=r'$\Gamma$', layout=slider_layout),# continuous_update=False),
 		p_cons = widgets.FloatSlider(value=0.1, min=0, max=0.3, step=0.01, description=r'$p_\mathrm{cons}$', layout=slider_layout),
+		policy = widgets.RadioButtons(options=['DEJMPS', 'Double DEJMPS', '513 EC', 'Optimal bi. Cliff.'], value='DEJMPS', description=r'Policy'),
 		alpha1 = widgets.FloatSlider(value=0.1, min=0, max=1, step=0.01, description=r'$\alpha_1$', layout=slider_layout),
 		alpha2 = widgets.FloatSlider(value=0.1, min=0, max=1, step=0.01, description=r'$\alpha_2$', layout=slider_layout),
 		beta1 = widgets.FloatSlider(value=0.1, min=0, max=1, step=0.01, description=r'$\beta_1$', layout=slider_layout),
