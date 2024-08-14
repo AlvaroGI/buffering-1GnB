@@ -959,7 +959,7 @@ def AFplot(policy_names, sim_data=None, theory_data=None, filename=None, xlims=N
 		plt.show()
 	return
 
-def AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_after_swap, Gamma, p_cons, savefig=False, xlims=None, ylims=None):
+def AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_after_swap, Gamma, p_cons, savefig=False, xlims=None, ylims=None, colors=None):
 	if varying_param=='q_purif':
 		varying_array = q_purif
 	else:
@@ -991,7 +991,7 @@ def AFplot_theory(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_a
 			raise ValueError('Unknown varying_param')
 	else:
 		filename = None
-	AFplot(policy_names, sim_data=None, theory_data=theory_data, filename=filename, xlims=xlims, ylims=xlims)
+	AFplot(policy_names, sim_data=None, theory_data=theory_data, filename=filename, xlims=xlims, ylims=xlims, colors=colors)
 
 	return
 
@@ -1179,6 +1179,144 @@ def AFplot_noisy_interactive():
 		beta1 = widgets.FloatSlider(value=0.1, min=0, max=1, step=0.01, description=r'$\beta_1$', layout=slider_layout),
 		beta2 = widgets.FloatSlider(value=0.1, min=0, max=1, step=0.01, description=r'$\beta_2$', layout=slider_layout))
 	return
+
+def AFplot_vs_id_vs_repl(varying_param, n, p_gen, rho_new, q_purif, policy_names, pur_after_swap, Gamma, p_cons, savefig=False, xlims=None, ylims=None, colors=None, linestyles=None):
+	if varying_param=='q_purif':
+		varying_array = q_purif
+	else:
+		raise ValueError('Unknown varying_param')
+
+
+	## COMPUTE A, F POLICIES ##
+	Fcons_theory_vec = [[] for policy in policy_names]
+	A_theory_vec = [[] for policy in policy_names]
+
+	for idx_policy, policy_name in enumerate(policy_names):
+		purif_policy = policy_label_to_function(policy_name)
+		for x in varying_array:
+			if varying_param=='q_purif':
+				q_purif = x
+			else:
+				raise ValueError('Unknown varying_param')
+			A, Fcons = analytical_availability_Fcons(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons)
+			Fcons_theory_vec[idx_policy] += [Fcons]
+			A_theory_vec[idx_policy] += [A]
+
+
+	## COMPUTE A, F REPLACEMENT AND IDENTITY ##
+	purif_policy = policy_label_to_function('Replacement')
+	q_purif = 1
+	A_replacement, F_replacement = analytical_availability_Fcons(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons)
+
+	purif_policy = policy_label_to_function('Identity')
+	q_purif = 1
+	A_id, F_id = analytical_availability_Fcons(n, p_gen, rho_new, q_purif, purif_policy, pur_after_swap, Gamma, p_cons)
+
+
+	## BOUNDS ##
+	p_gen_eff = 1 - (1-p_gen)**n
+	F_new = rho_new[0][0]
+	gamma = np.exp(Gamma)-1
+	xi = (gamma+p_cons)*p_cons
+	xi1 = 1 + 2*gamma + (2-gamma)*p_cons - 2*p_cons**2
+	xi2 = 2*(1-p_cons)**2
+	A_upperbound = p_gen_eff / (p_gen_eff+p_cons)
+	A_lowerbound = p_gen_eff*(gamma+p_cons) / (xi + xi1*p_gen_eff + xi2*p_gen_eff**2)
+	F_upperbound = (gamma/4 + F_new*p_cons + (1-p_cons)*(4*F_new/3+11/12)*p_gen_eff ) / (gamma+p_cons)
+	F_lowerbound = (gamma/4 + F_new*p_cons) / (gamma+p_cons)
+
+	x_bounds_small = [A_lowerbound, A_upperbound]
+	y_bounds_small0 = [F_lowerbound, F_lowerbound]
+	y_bounds_small1 = [F_upperbound, F_upperbound]
+
+	x_bounds_big = [0, 1]
+	y_bounds_big0 = [0, 0]
+	y_bounds_big1 = [1, 1]
+
+
+	## PLOT ##
+	xfig = 9
+	yfig = 9
+	fontsize_labels = 8
+	fig, ax = plt.subplots(figsize=(xfig/2.54, yfig/2.54))
+
+	plt.fill_between(x_bounds_big, y_bounds_big0, y_bounds_big1,
+	                 color=(0.55,0.55,0.55), zorder=-10000)
+	plt.fill_between(x_bounds_big, y_bounds_big0, y_bounds_big1, hatch='x',
+	                 color='None', edgecolor=(0.75,0.75,0.75), # There is a bug in Python: hatch cannot have alpha
+	                 label=r'Unattainable', zorder=-10000)
+	plt.fill_between(x_bounds_small, y_bounds_small0, y_bounds_small1,
+	             		color='w', zorder=-10000)
+
+	# Identity and replacement
+	plt.scatter([A_id], [F_id], marker='s', color='tab:blue', label='Identity', zorder=100)
+	plt.scatter([A_replacement], [F_replacement], marker='*', color='tab:red', label='Replacement', zorder=100)
+
+
+	## Plot theory data ##
+	cmap = plt.cm.get_cmap('inferno')
+	if colors==None:
+		colors = [cmap(i/len(policy_names)) for i in range(len(policy_names))]
+	if linestyles==None:
+		linestyles = ['--']+['-' for i in range(len(policy_names)-1)]
+	markers = ['^','v','o','s','d']
+	for idx_policy, policy in enumerate(policy_names):
+		#print(policy, Fcons_theory_vec[idx_policy][-1], '\n')
+		plt.plot(A_theory_vec[idx_policy], Fcons_theory_vec[idx_policy],
+				 #linewidth=3,
+				 color=colors[idx_policy], linestyle=linestyles[idx_policy], label=policy,
+				 zorder=-idx_policy)
+		plt.scatter(A_theory_vec[idx_policy][-1], Fcons_theory_vec[idx_policy][-1],
+					s=10, color=colors[idx_policy], marker='o', zorder=-idx_policy)
+		
+
+	## Plot specs ##
+	plt.legend(fontsize=fontsize_labels)
+	plt.xlabel(r'Availability', fontsize=fontsize_labels)
+	plt.ylabel(r'Avg. consumed fidelity', fontsize=fontsize_labels)
+	ax.tick_params(labelsize=fontsize_labels-1)
+
+	dA = 0.05
+	if xlims==None:
+		xmin = round(np.floor(np.min(A_theory_vec) / dA) * dA,2)
+		xmax = round(np.ceil(np.max(A_theory_vec) / dA) * dA,2)
+	else:
+		xmin = xlims[0]
+		xmax = xlims[1]
+	dF = 0.05
+	dF_ticks = 0.05
+	if ylims==None:
+		ymin = round(np.floor(np.min(Fcons_theory_vec) / dF) * dF,2)
+		ymax = round(np.ceil(np.max(Fcons_theory_vec) / dF) * dF,2)
+		ymin_ticks = round(np.floor(np.min(Fcons_theory_vec) / dF_ticks) * dF_ticks,2)
+		ymax_ticks = round(np.ceil(np.max(Fcons_theory_vec) / dF_ticks) * dF_ticks,2)
+		ax.set_yticks(np.arange(ymin_ticks,ymax_ticks*1.0001,dF_ticks))
+	else:
+		ymin = ylims[0]
+		ymax = ylims[1]
+		ax.set_yticks(np.arange(0.5,1*1.0001,0.05))
+	ax.set_xticks(np.arange(xmin,xmax*1.0001,dA))
+	plt.xlim(xmin, xmax)
+	plt.ylim(ymin, ymax)
+	
+
+	if savefig:
+		filename = 'figs/AF_vs_id_vs_repl_'
+		for policy in policy_names:
+			filename += policy+'_'
+		filename += '%s'%varying_param
+		if varying_param=='q_purif':
+			filename += '_n%d_pgen%.3f_pcons%.3f_rhodiag-%.3f-%.3f-%.3f-%.3f_swapandpur%s_G%.5f.pdf'%(n, p_gen, p_cons,
+							rho_new[0][0], rho_new[1][1], rho_new[2][2], rho_new[3][3], pur_after_swap, Gamma)
+		else:
+			raise ValueError('Unknown varying_param')
+		plt.savefig(filename, dpi=300, bbox_inches='tight')
+	else:
+		plt.show()
+	return
+
+
+
 
 def policies_plot(policy_names, rho_new, num_new_links, figsize_cm=20, savefig=False):
 
