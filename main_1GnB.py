@@ -89,7 +89,6 @@ def policy_depol(rho_new, num_new_links, policy_name=None, beta=0):
 	gamma = beta*(beta-2)
 	return (1+gamma)*a1, (1+gamma)*b1, c1, d1
 
-
 def policy_erasureDEJMPS(rho_new, num_new_links, alpha=0):
 	'''Purification policy: DEJMPS, and applies an erasure channel afterwards.
 
