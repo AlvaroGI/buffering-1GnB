@@ -234,6 +234,7 @@ def policy_concatDEJMPS(rho_new, num_new_links, max_links_used=1):
 	C = rho_new[2][2]
 	D = rho_new[1][1]
 
+
 	## Do at most min(num_new_links-1, max_links_used-1) applications of DEJMPS with the new links ##
 	p_success_newlinks = 1 # Probability of not failing any of these DEJMPS
 	for ii in range(min(num_new_links-1, max_links_used-1)):
@@ -249,6 +250,12 @@ def policy_concatDEJMPS(rho_new, num_new_links, max_links_used=1):
 		B = (_C*D_new+_D*C_new)/p_success_round
 		C = (_C*C_new+_D*D_new)/p_success_round
 		D = (_A*B_new+_B*A_new)/p_success_round
+
+	# TWIRL
+	if False:
+		B = (1-A)/3
+		C = (1-A)/3
+		D = (1-A)/3
 
 	## Use the resulting link to purify the link in memory ##
 	## Purification coefficients ##
