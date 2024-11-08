@@ -376,6 +376,8 @@ def policy_opt_bilocal_Clifford(rho_new, num_new_links):
 						Then use the remaining link to do DEJMPS on the buffered
 						link. If num_new_links>8, it only uses 8 new links
 						and discards the rest.
+		**WARNING**: if n>4 or A_new!=0.8, the optimal bC policy includes twirling 
+		in between the optimal protocol and the final round of DEJMPS.
 
 	Parameters:
 	- rho_new:	(np.array) Density matrix of newly generated entangled links,
@@ -388,7 +390,7 @@ def policy_opt_bilocal_Clifford(rho_new, num_new_links):
 
 	assert num_new_links >= 1
 	
-	## The Jansen policy only works for Werner states ##
+	## The Jansen policy contained in this function is only optimal for Werner states ##
 	assert isWerner(rho_new), 'Optimal bilocal Clifford policy is only defined for Werner states!'
 
 	## Diagonal elements of the newly generated state (in Bell-state basis) ##
@@ -424,10 +426,40 @@ def policy_opt_bilocal_Clifford(rho_new, num_new_links):
 		A = A_new
 	elif num_new_links==2:
 		A = ( (10/9)*A**2 - (2/9)*A + 1/9 )/p_success_newlinks
+		if A_new == 0.8:
+			A = 0.83815
+			D = 0.13873
+			C = 0.01156
+			B = 0.01156
+		elif A_new == 0.7:
+			A = 0.73529
+			D = 0.20589
+			C = 0.02941
+			B = 0.02941
 	elif num_new_links==3:
 		A = ( (28/27)*A**3 - (1/9)*A + 2/27 )/p_success_newlinks
+		if A_new == 0.8:
+			A = 0.88742
+			D = 0.08608
+			C = 0.01325
+			B = 0.01325
+		elif A_new == 0.7:
+			A = 0.78571
+			D = 0.14287
+			C = 0.03571
+			B = 0.03571
 	elif num_new_links==4:
 		A = ( (8/9)*A**4 + (8/27)*A**3 - (2/9)*A**2 + 1/27 )/p_success_newlinks
+		if A_new == 0.8:
+			A = 0.95350
+			D = 0.01550
+			C = 0.01550
+			B = 0.01550
+		elif A_new == 0.7:
+			A = 0.86365
+			D = 0.04545
+			C = 0.04545
+			B = 0.04545
 	elif num_new_links==5:
 		A = ( (32/27)*A**5 - (20/27)*A**4 + (10/9)*A**3 - (20/27)*A**2 + (5/27)*A )/p_success_newlinks
 	elif num_new_links==6:
@@ -436,14 +468,16 @@ def policy_opt_bilocal_Clifford(rho_new, num_new_links):
 		A = ( (2368/2187)*A**7 - (592/2187)*A**6 + (196/729)*A**5 - (44/2187)*A**4 - (199/2187)*A**3 + (20/729)*A**2 - (2/2187)*A + 8/2187 )/p_success_newlinks
 	elif num_new_links==8:
 		raise ValueError('The F_out reported in Jansen2022 for num_new_links=8 is incorrect')
-		A = ( (6784/6561)*A**8 - (51/6561)*A**7 - (32/6561)*A**6 + (832/6561)*A**5 - (560/6561)*A**4 - (8/6561)*A**3 + (52/6561)*A**2 - (8/6561)*A + 13/6561 )/p_success_newlinks
 	else:
-		raise ValueError('Optimal bilocal Clifford policy only works up to num_new_links=8')
+		raise ValueError('Optimal bilocal Clifford policy only works up to num_new_links=7')
 
-	## Since the state is Werner, the other diagonal elements are trivial to compute ##
-	B = (1-A)/3
-	C = (1-A)/3
-	D = (1-A)/3
+	if num_new_links==1 or num_new_links>4 or (A_new not in [0.7,0.8]):
+		B = (1-A)/3
+		C = (1-A)/3
+		D = (1-A)/3
+
+	assert (A+D+C+B-1)<1e-10, print(A,B,C,D)
+
 
 	## Use the resulting link to purify the link in memory ##
 	## Purification coefficients ##
