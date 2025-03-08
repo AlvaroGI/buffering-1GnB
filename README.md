@@ -1,6 +1,6 @@
-# Entanglement buffering with multiple quantum memories
+# [arXiv:2502.20240] Entanglement buffering with multiple quantum memories
 
-This repository contains all the code used in our manuscript 'Entanglement buffering with multiple quantum memories' (see the arxiv version of our manuscript at ...).
+This repository contains all the code used in our manuscript 'Entanglement buffering with multiple quantum memories' ([arXiv:2502.20240](https://arxiv.org/abs/2502.20240)).
 
 We have three main types of files:
 
